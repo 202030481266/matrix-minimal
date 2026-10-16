@@ -109,7 +109,7 @@ else { Write-Note '没找到安装记录（matrix-minimal.state.json），按默
 # --- profiles ----------------------------------------------------------------------
 $header = '# Matrix Minimal (https://github.com/202030481266/matrix-minimal)'
 $loaderLines = ". (Join-Path `$HOME '.config/omp/matrix-minimal.ps1')", ". (Join-Path `$HOME '.config/omp/matrix-terminal.ps1')"
-$profilePaths = if ($state -and $state.profiles) { @($state.profiles.PSObject.Properties.Name) } else {
+$profilePaths = if ($state -and $state.profiles) { @($state.profiles.PSObject.Properties | ForEach-Object { $_.Name }) } else {
     @((Join-Path $documents 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
       (Join-Path $documents 'PowerShell\Microsoft.PowerShell_profile.ps1'))
 }
@@ -145,7 +145,7 @@ foreach ($p in $profilePaths) {
 # --- Windows Terminal ------------------------------------------------------------
 $terminal = if ($state) { $state.terminal } else { $null }
 if ($terminal) {
-    foreach ($path in @($terminal.PSObject.Properties.Name)) {
+    foreach ($path in @($terminal.PSObject.Properties | ForEach-Object { $_.Name })) {   # empty when Windows Terminal was skipped
         if (-not (Test-Path $path)) { continue }
         $record = Get-Prop $terminal $path
         $raw = [IO.File]::ReadAllText($path)
@@ -177,6 +177,23 @@ if ($terminal) {
     }
 } else {
     Write-Note 'Windows Terminal：没有安装记录，没有修改。需要的话在设置里把 PowerShell 的配色、背景图、像素着色器改回去'
+}
+
+# --- theme switcher (posh-theme) -------------------------------------------------
+$poshTheme = if ($state) { $state.poshTheme } else { $null }
+if ($poshTheme) {
+    $savedFile = Join-Path $userHome '.posh-theme'
+    if ((Test-Path $savedFile) -and ([IO.File]::ReadAllText($savedFile)).Trim() -eq 'matrix-minimal') {
+        if ($poshTheme.savedBefore) { [IO.File]::WriteAllText($savedFile, "$($poshTheme.savedBefore)`r`n", $utf8) }
+        else { Remove-Item $savedFile }
+    }
+    if ($poshTheme.stubCreated) {
+        $stub = Join-Path $userHome '.posh-themes\matrix-minimal.omp.json'
+        Remove-Item $stub -ErrorAction SilentlyContinue
+        $stubDir = Split-Path $stub
+        if ((Test-Path $stubDir) -and -not (Get-ChildItem $stubDir -Force)) { Remove-Item $stubDir }
+    }
+    Write-Ok "theme 主题切换工具：当前主题恢复为 $(if ($poshTheme.savedBefore) { $poshTheme.savedBefore } else { '它的默认主题' })"
 }
 
 # --- execution policy ------------------------------------------------------------
@@ -212,6 +229,9 @@ if ($omp -and $omp.dir -and (Test-Path $omp.dir)) {
             $path = $key.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
             $key.SetValue('Path', (@($path -split ';' | Where-Object { $_ -and $_ -ne $omp.dir }) -join ';'), [Microsoft.Win32.RegistryValueKind]::ExpandString)
             $key.Close()
+            # broadcast the change (.NET does it whenever it writes a user variable)
+            [Environment]::SetEnvironmentVariable('MATRIX_MINIMAL_REFRESH', '1', 'User')
+            [Environment]::SetEnvironmentVariable('MATRIX_MINIMAL_REFRESH', $null, 'User')
         }
         Write-Ok 'oh-my-posh 已删除'
     }

@@ -16,7 +16,36 @@ $global:MatrixMinimalHome = $PSScriptRoot
 if ($null -eq $global:MatrixFx) { $global:MatrixFx = @{ Intro = 'daily'; Decode = $true; Glitch = $true } }
 
 # 1. Prompt -------------------------------------------------------------------
-if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
+& {
+    # setup.ps1 puts oh-my-posh here. A terminal started before the install (or before the
+    # PATH change reached Explorer) still has the old PATH, so add it for this session.
+    $ompBin = Join-Path $env:LOCALAPPDATA 'Programs\oh-my-posh\bin'
+    if ((Test-Path (Join-Path $ompBin 'oh-my-posh.exe')) -and (($env:Path -split ';') -notcontains $ompBin)) { $env:Path = "$ompBin;$env:Path" }
+    # The intro / glitch hooks and the input colours need PSReadLine loaded now, not later.
+    if (-not (Get-Module PSReadLine)) { Import-Module PSReadLine -ErrorAction SilentlyContinue }
+}
+
+# If the "theme" switcher (posh-theme) is already loaded, matrix-minimal becomes one of its
+# themes and lets it run oh-my-posh: a second "oh-my-posh init" here would drop posh-theme's
+# tab hooks (the busy spinner would never stop) and leave "theme" reporting another theme.
+function global:Register-MatrixWithPoshTheme {
+    if (-not $global:PoshThemes -or -not (Get-Command Initialize-PoshTheme -CommandType Function -ErrorAction SilentlyContinue)) { return $false }
+    $stub = Join-Path $HOME '.posh-themes\matrix-minimal.omp.json'         # where posh-theme looks for extra themes
+    if (-not (Test-Path $stub)) {
+        New-Item -ItemType Directory -Force -Path (Split-Path $stub) | Out-Null
+        $config = (Join-Path $global:MatrixMinimalHome 'matrix-minimal.omp.json') | ConvertTo-Json
+        [IO.File]::WriteAllText($stub, "{`n  `"extends`": $config,`n  `"final_space`": true`n}`n")
+    }
+    if ($global:PoshThemes -notcontains 'matrix-minimal') { $global:PoshThemes += 'matrix-minimal' }
+    $true
+}
+if (Register-MatrixWithPoshTheme) {
+    $saved = "$(Get-Content $global:PoshThemeFile -ErrorAction SilentlyContinue)".Trim()
+    if ($saved -eq 'matrix-minimal' -and $global:PoshThemeCurrent -ne 'matrix-minimal') {
+        Initialize-PoshTheme 'matrix-minimal'
+        $global:PoshThemeCurrent = 'matrix-minimal'
+    }
+} elseif (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     oh-my-posh init pwsh --config (Join-Path $PSScriptRoot 'matrix-minimal.omp.json') | Invoke-Expression
 } else {
     Write-Warning 'Matrix Minimal: 找不到 oh-my-posh 命令，提示符主题没有加载。'
@@ -294,6 +323,8 @@ function global:Get-MatrixTabPath {
 function global:Invoke-MatrixBeforeInput {
     if ([Console]::IsOutputRedirected -or -not $Host.UI.SupportsVirtualTerminal) { return }
     Register-MatrixPrompt
+    # "theme -Update" reloads posh-theme, which resets its theme list
+    if ($global:PoshThemes -and $global:PoshThemes -notcontains 'matrix-minimal') { $global:PoshThemes += 'matrix-minimal' }
     if (-not $global:MatrixIntroChecked) {
         $global:MatrixIntroChecked = $true
         $global:MatrixGlitchHistoryId = (Get-History -Count 1).Id

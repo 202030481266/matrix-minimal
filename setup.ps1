@@ -112,6 +112,10 @@ function Set-UserPath([string]$Value) {
     $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
     $key.SetValue('Path', $Value, [Microsoft.Win32.RegistryValueKind]::ExpandString)
     $key.Close()
+    # Tell Explorer and Windows Terminal: without this, newly opened windows keep the old PATH
+    # until the next sign-in. .NET broadcasts WM_SETTINGCHANGE whenever it writes a user variable.
+    [Environment]::SetEnvironmentVariable('MATRIX_MINIMAL_REFRESH', '1', 'User')
+    [Environment]::SetEnvironmentVariable('MATRIX_MINIMAL_REFRESH', $null, 'User')
 }
 
 Write-Host ''
@@ -286,6 +290,24 @@ foreach ($s in $shells) {
     [IO.File]::WriteAllText($p, ($lines -join $nl), $file.Encoding)
     foreach ($d in $disabled) { Write-Note "$($s.Shell)：停用了原来的一行：$d" }
     Write-Ok "$($s.Shell)：$p"
+}
+
+# The "theme" switcher (posh-theme) loads first and runs oh-my-posh itself: make matrix-minimal
+# one of its themes and the current one, so the two do not fight over the prompt.
+if (Test-Path (Join-Path $userHome 'posh-theme.ps1')) {
+    $savedFile = Join-Path $userHome '.posh-theme'
+    $stub = Join-Path $userHome '.posh-themes\matrix-minimal.omp.json'
+    if (-not $state.Contains('poshTheme')) {
+        $state['poshTheme'] = [ordered]@{
+            savedBefore = if (Test-Path $savedFile) { ([IO.File]::ReadAllText($savedFile)).Trim() } else { '' }
+            stubCreated = -not (Test-Path $stub)
+        }
+    }
+    New-Item -ItemType Directory -Force -Path (Split-Path $stub) | Out-Null
+    $configLiteral = (Join-Path $target 'matrix-minimal.omp.json') | ConvertTo-Json
+    [IO.File]::WriteAllText($stub, "{`n  `"extends`": $configLiteral,`n  `"final_space`": true`n}`n", $utf8)
+    [IO.File]::WriteAllText($savedFile, "matrix-minimal`r`n", $utf8)
+    Write-Ok '检测到 theme 主题切换工具：matrix-minimal 已成为它的一个主题，并设为当前主题（theme <名字> 可以切换）'
 }
 
 # The profile is a script: with the "Restricted" policy it would never run.
