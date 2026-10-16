@@ -154,6 +154,14 @@ if ($terminal) {
         }
         $list = if ($s.profiles -is [array]) { @($s.profiles) } else { @($s.profiles.list) }
         $restored = @()
+        # The profile the "rain" command added. It uses the scheme too, so it goes before the check below.
+        $rainProfile = '{4d415452-4958-5241-494e-6d696e696d61}'
+        if ($list | Where-Object { $_ -and $_.guid -eq $rainProfile }) {
+            $list = @($list | Where-Object { -not ($_ -and $_.guid -eq $rainProfile) })
+            if ($s.profiles -is [array]) { $s.PSObject.Properties['profiles'].Value = $list }
+            else { $s.profiles.PSObject.Properties['list'].Value = $list }
+            Write-Ok 'Windows Terminal：删除了 "Matrix Rain" 配置'
+        }
         foreach ($pr in $list) {
             $id = if ($pr.guid) { $pr.guid } else { $pr.name }
             $before = Get-Prop $record.profiles $id

@@ -358,6 +358,7 @@ if ($SkipTerminal) {
     $look = [ordered]@{}
     foreach ($p in $wt.powershellProfiles.PSObject.Properties) { $look[$p.Name] = $p.Value }
     $look['backgroundImageStretchMode'] = $stretch
+    $rainProfile = '{4d415452-4958-5241-494e-6d696e696d61}'   # added by the "rain" command
     if ($sandbox) {
         $look['backgroundImage'] = Join-Path $target 'matrix-rain-bg.png'
         $look['experimental.pixelShaderPath'] = Join-Path $target 'matrix-phosphor.hlsl'
@@ -391,6 +392,7 @@ if ($SkipTerminal) {
         $names = @()
         foreach ($pr in $list) {
             if ("$($pr.name) $($pr.source) $($pr.commandline)" -notmatch 'PowerShell|pwsh') { continue }
+            if ($pr.guid -eq $rainProfile) { continue }   # "Matrix Rain" runs pwsh too, but keeps its moving rain
             $id = if ($pr.guid) { $pr.guid } else { $pr.name }
             if (-not $record['profiles'].Contains($id)) {
                 $before = [ordered]@{}
@@ -416,6 +418,6 @@ if ($SkipTerminal) {
 Write-Host ''
 Write-Host '  完成。Welcome to the desert of the real.' -ForegroundColor Green
 Write-Host '  - 关掉所有 PowerShell 窗口，重新打开（新 PATH 和 profile 才会生效）'
-Write-Host '  - 每天第一个窗口会播开场；随时运行 Show-MatrixIntro 重播'
+Write-Host '  - 每开一个标签页都会播开场；随时运行 Show-MatrixIntro 重播'
 Write-Host "  - 卸载：powershell -ExecutionPolicy Bypass -File `"$(Join-Path $target 'uninstall.ps1')`""
 Write-Host ''
