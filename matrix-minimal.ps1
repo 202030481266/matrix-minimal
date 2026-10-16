@@ -297,6 +297,10 @@ function global:Invoke-MatrixBeforeInput {
     if (-not $global:MatrixIntroChecked) {
         $global:MatrixIntroChecked = $true
         $global:MatrixGlitchHistoryId = (Get-History -Count 1).Id
+        # the "matrix" easter egg is interactive: no busy spinner from the theme switcher (posh-theme)
+        if ($global:PoshThemeInteractiveApps -and $global:PoshThemeInteractiveApps -notcontains 'matrix') {
+            $global:PoshThemeInteractiveApps += 'matrix'
+        }
         if (Test-MatrixIntroDue) { Show-MatrixIntro -Redraw }
         return
     }
@@ -341,8 +345,10 @@ function global:Get-MatrixName {
     $env:USERNAME
 }
 
-# ~$Ms of falling katakana over the whole window, then it drains away. $true if a key cut it short.
-function global:Show-MatrixRain([int]$Ms = 1000) {
+# Falling katakana over the whole window, then it drains away.
+#   -Ms n      rain for n ms; returns $true if a key cut it short (the intro)
+#   -UntilKey  rain until a key is pressed, which it swallows (the red pill)
+function global:Show-MatrixRain([int]$Ms = 1000, [switch]$UntilKey) {
     $e = [char]27
     $out = $Host.UI                 # Unicode-safe (Console.Out would turn katakana into ? on some code pages)
     $W = [Console]::WindowWidth - 1                     # never write the last column: no wrap, no scroll
@@ -356,10 +362,16 @@ function global:Show-MatrixRain([int]$Ms = 1000) {
     })
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $draining = $false
+    $drainedAt = 0
     while ($true) {
-        if (-not $draining -and $sw.ElapsedMilliseconds -ge $Ms) {
-            $draining = $true
-            foreach ($d in $drops) { $d.Speed += 2 }      # the rain drains off quickly
+        if (-not $draining) {
+            $stop = if ($UntilKey) { [Console]::KeyAvailable } else { $sw.ElapsedMilliseconds -ge $Ms }
+            if ($stop) {
+                if ($UntilKey) { [void][Console]::ReadKey($true) }
+                $draining = $true
+                $drainedAt = $sw.ElapsedMilliseconds
+                foreach ($d in $drops) { $d.Speed += 2 }  # the rain drains off quickly
+            }
         }
         $sb = New-Object Text.StringBuilder
         $alive = 0
@@ -379,8 +391,9 @@ function global:Show-MatrixRain([int]$Ms = 1000) {
             elseif (-not $draining) { $d.Y = - $rng.Next(0, 8); $d.Len = 6 + $rng.Next(0, 14) }
         }
         $out.Write($sb.ToString())
-        if ($alive -eq 0 -or $sw.ElapsedMilliseconds -gt $Ms + 700) { return $false }
-        if (Wait-MatrixKey 33) { return $true }
+        if ($alive -eq 0 -or ($draining -and $sw.ElapsedMilliseconds - $drainedAt -gt 700)) { return $false }
+        if ($UntilKey) { [Threading.Thread]::Sleep(33) }
+        elseif (Wait-MatrixKey 33) { return $true }
     }
 }
 
@@ -469,5 +482,87 @@ function global:Show-MatrixGlitch {
         $out.Write("`r$e[2K  $left$e[0m");                    [Threading.Thread]::Sleep(40)
     } finally {
         $out.Write("`r$e[2K$p$e[?25h")                              # the real prompt, cursor where it was
+    }
+}
+
+# --- easter egg: type "matrix" ---
+# Morpheus offers the pills. Red: rain until a key is pressed, then a line from the film,
+# which stays in the terminal. Blue: the story ends. Esc or Ctrl+C leaves at any time.
+# It runs on the alternate screen, so the terminal comes back as it was.
+$global:MatrixQuotes = @(
+    'There is no spoon.', 'Free your mind.', 'I know kung fu.', 'Welcome to the real world.',
+    "What is real? How do you define 'real'?", 'Welcome to the desert of the real.',
+    'There is a difference between knowing the path and walking the path.',
+    'Ignorance is bliss.', 'Dodge this.', 'Follow the white rabbit.'
+)
+
+function global:Test-MatrixLeaveKey($Key) {
+    $Key.Key -eq 'Escape' -or ($Key.Key -eq 'C' -and ($Key.Modifiers -band [ConsoleModifiers]::Control))
+}
+
+# Types $Text at the cursor. Any key finishes the line at once; $false for Esc / Ctrl+C.
+function global:Write-MatrixTyped([string]$Text, [string]$Color, [int]$MsPerChar = 28) {
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    for ($k = 0; $k -lt $Text.Length; $k++) {
+        $Host.UI.Write("$Color$($Text[$k])")
+        $wait = ($k + 1) * $MsPerChar - $clock.ElapsedMilliseconds
+        if ($wait -gt 0 -and (Wait-MatrixKey $wait)) {
+            if (Test-MatrixLeaveKey ([Console]::ReadKey($true))) { return $false }
+            $Host.UI.Write("$Color$($Text.Substring($k + 1))")
+            return $true
+        }
+    }
+    $true
+}
+
+# Waits up to $Ms; any key ends the wait early. $false for Esc / Ctrl+C.
+function global:Wait-MatrixBeat([int]$Ms) {
+    if (Wait-MatrixKey $Ms) { return -not (Test-MatrixLeaveKey ([Console]::ReadKey($true))) }
+    $true
+}
+
+function global:matrix {
+    if ([Console]::IsOutputRedirected -or -not $Host.UI.SupportsVirtualTerminal) { 'Wake up...'; return }
+    $e = [char]27
+    $ui = $Host.UI
+    $green = "$e[38;2;0;255;65m"
+    $white = "$e[38;2;232;255;238m"
+    $dim = "$e[38;2;61;138;80m"
+    $quote = $null
+    $ctrlC = [Console]::TreatControlCAsInput
+    try {
+        [Console]::TreatControlCAsInput = $true
+        while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }
+        $ui.Write("$e[?1049h$e[?25l$e[0m$e[2J$e[3;5H")                # alternate screen
+        if (-not (Write-MatrixTyped 'This is your last chance. After this, there is no turning back.' $green)) { return }
+        $ui.Write("$e[5;5H$e[1;38;2;255;62;91m[R] red pill$e[0m        $e[1;38;2;80;140;255m[B] blue pill$e[0m")
+        $choice = $null
+        while (-not $choice) {
+            $k = [Console]::ReadKey($true)
+            if (Test-MatrixLeaveKey $k) { return }
+            if ($k.Key -eq 'R') { $choice = 'red' } elseif ($k.Key -eq 'B') { $choice = 'blue' }
+        }
+        if ($choice -eq 'blue') {
+            $ui.Write("$e[7;5H")
+            if (Write-MatrixTyped 'The story ends, you wake up in your bed and believe whatever you want to believe.' "$e[38;2;80;140;255m") {
+                [void](Wait-MatrixBeat 1600)
+            }
+            return
+        }
+        $ui.Write("$e[7;5H")
+        if (-not (Write-MatrixTyped "Remember: all I'm offering is the truth. Nothing more." $white)) { return }
+        if (-not (Wait-MatrixBeat 900)) { return }
+        $ui.Write("$e[0m$e[2J$e[$([Console]::WindowHeight);3H${dim}press any key to wake up$e[0m")
+        [void](Show-MatrixRain -UntilKey)
+        $quote = $global:MatrixQuotes[$global:MatrixRng.Next($global:MatrixQuotes.Count)]
+        $row = [math]::Max(1, [int]([Console]::WindowHeight / 2))
+        $col = [math]::Max(1, [int](([Console]::WindowWidth - $quote.Length) / 2))
+        $ui.Write("$e[0m$e[2J$e[$row;${col}H")
+        if (Write-MatrixTyped $quote $green 45) { [void](Wait-MatrixBeat 1500) }
+    } finally {
+        while ([Console]::KeyAvailable) { [void][Console]::ReadKey($true) }
+        [Console]::TreatControlCAsInput = $ctrlC
+        $ui.Write("$e[0m$e[2J$e[?1049l$e[?25h")                           # back to the normal screen
+        if ($quote) { $ui.WriteLine("$dim$quote$e[0m") }
     }
 }
