@@ -2,64 +2,71 @@
 
 > Wake up, Neo... The Matrix has you.
 
-给 PowerShell + Windows Terminal 做的黑客帝国主题，基于 [Oh My Posh](https://ohmyposh.dev)。
+一个黑客帝国风格的 PowerShell 主题，搭配 Windows Terminal 使用，提示符基于 [Oh My Posh](https://ohmyposh.dev)。
 
-![演示：开场、pwd 解码、命令失败时的故障闪烁](docs/demo.gif)
+![演示：开场、pwd 解码、git 的输出配色、命令失败时的闪烁、matrix 彩蛋和 rain 的动态雨](docs/demo.gif)
 
-## 有什么
+## 效果
 
-- **极简提示符**：名字、git 分支（`*` 有未提交的改动，`+N` / `-N` 领先 / 落后远端）、失败时的退出码、`>`（管理员窗口是 `#`）。命令运行超过 2 秒时，右边才显示耗时。
-- **雨幕背景**：一帧静态的片假名代码雨，右边密、越往左越淡，底部也会变淡，不挡你的命令。安装时按你的屏幕生成，不占 GPU。
-- **磷光屏**：文字带一点荧光微光，外加细扫描线。像素着色器只在画面变化时运行，平时不耗资源。
-- **开场**：每开一个新窗口或标签页，先打出 "Wake up, 你的名字..."，接着下一阵代码雨，最后停在 "Welcome to the desert of the real."。按任意键跳过，随时运行 `Show-MatrixIntro` 重播；嫌烦可以改成每天只播一次（见下方自定义）。
-- **pwd 解码**：单独输入 `pwd` 时，路径先是一串乱跳的片假名，再逐字解码成真实路径，以高亮条显示。
-- **故障闪烁**：命令失败后，提示符会红绿错位地抖一下。
-- **彩蛋**：输入 `matrix`，墨菲斯会让你选药丸。红色药丸带你进入全屏代码雨，按任意键醒来，并留下一句电影台词；蓝色药丸则让故事到此结束。
-- **会动的雨**：输入 `rain`，会新开一个 "Matrix Rain" 标签页，里面的代码雨一直在下；别的标签页还是静态雨幕。动态雨会持续占用显卡（切到别的标签页也不会停），看够了关掉那个标签页就行。
-- **输出配色**：提示符、输入和雨幕是矩阵绿；命令输出的正文是淡磷光色，其余颜色各有含义：红色（红药丸）是删除和错误，绿色是新增和成功，琥珀色是警告和 commit 号，青色是 diff 的 `@@` 和详细信息，还有蓝药丸的蓝。git、npm、pytest 这些工具的输出因此一眼就能分清；`ls` 里图片、音视频是紫色，压缩包是红色。
-- **不污染别的程序**：`ls` 的目录名不再变成蓝色色块；运行 `claude`、`codex` 时自动换回它们自己的配色。
+- 提示符：
+  
+  - 名字、git 分支，最后是 `>`，管理员窗口里换成 `#`。
+  
+  - 分支后面的 `*` 表示有未提交的改动，`+N`、`-N` 表示领先或落后远端几个提交。
+  
+  - 上一条命令失败时会显示退出码，运行超过两秒的命令会在右侧显示耗时。
+
+- 代码雨背景，其中雨集中在右侧，往左、往下逐渐变淡，主要是考虑到大多数人的使用习惯是从左到右输入命令。
+
+- 文字默认带一层淡淡的荧光和细扫描线，参考了老式磷光显示器的风格。
+
+- 动画开场：默认每次新开一个标签页都会执行动画，屏幕上逐字打出 "Wake up, your name..."，接着下一阵代码雨，最后停在 "Welcome to the desert of the real."。按任意键可以跳过，运行 `Show-MatrixIntro` 可以重播，嫌烦也可以改成每天只放一次。
+
+- `pwd` 命令特效：输出的路径会先变成一串乱跳的片假名，再逐字解码出来。
+
+- 命令失败特效：提示符会红绿错位地抖一下。
+
+- `matrix` 命令特效：墨菲斯会让你选药丸，红色药丸带你进入全屏代码雨，按任意键醒来；蓝色药丸，故事就到此结束。
+
+- 动态代码雨请运行 `rain`，这会新开一个 "Matrix Rain" 标签页，该标签页的背景将会使用动态的代码雨。
 
 ![截图](docs/screenshot.png)
 
 ## 安装
 
-在 PowerShell 里运行（Windows PowerShell 5.1 和 PowerShell 7 都可以）：
+在 PowerShell 里运行下面这行，Windows PowerShell 5.1 和 PowerShell 7 都可以：
 
 ```powershell
 irm https://raw.githubusercontent.com/202030481266/matrix-minimal/main/install.ps1 | iex
 ```
 
-安装时会询问你的名字（显示在提示符和开场白里）。装完后，**关掉所有 PowerShell 窗口重新打开**。
+安装时需要输入名字，它会出现在提示符和开场白里。**装完之后关掉所有 PowerShell 窗口再重新打开，设置才会生效**。
 
-安装脚本会做下面这些事。改动之前都会备份，卸载时按原来的值恢复：
+安装脚本做了下面几件事。每处改动之前都会先备份，卸载时按原样恢复。
 
-1. 没有 oh-my-posh 时，下载官方独立版到 `%LOCALAPPDATA%\Programs\oh-my-posh\bin`（校验 SHA256 和数字签名），并加进用户 PATH。
-2. 把主题文件放到 `~\.config\omp`，按你的屏幕生成背景图。
-3. 在 Windows PowerShell 和 PowerShell 7 的 profile 里各加两行加载主题。如果执行策略是 Restricted，会改成 RemoteSigned（仅当前用户），否则 profile 根本不会运行。
-4. Windows Terminal：加入 "Matrix Minimal" 配色，只给 PowerShell 的配置换上配色、雨幕背景和磷光效果；cmd、WSL 保持原样。
+1. 如果没有 oh-my-posh，从官方下载独立版到 `%LOCALAPPDATA%\Programs\oh-my-posh\bin`，校验 SHA256 和数字签名后加入用户 PATH。
+2. 把主题文件复制到 `~\.config\omp`，并按屏幕尺寸生成背景图。
+3. 在 Windows PowerShell 和 PowerShell 7 的 profile 里各加两行来加载主题。如果执行策略是 Restricted，会改为 RemoteSigned（只针对当前用户），否则 profile 根本不会运行。
+4. 在 Windows Terminal 里加入 "Matrix Minimal" 配色，并给 PowerShell 的配置换上配色、背景和磷光效果。cmd、WSL 等其他配置保持原样。
 
-也可以下载 zip，解压后在文件夹里运行 `powershell -ExecutionPolicy Bypass -File .\install.ps1`。
+也可以 clone 仓库或下载 zip，在目录里运行 `powershell -ExecutionPolicy Bypass -File .\install.ps1`。以后要更新，`git pull` 之后再运行一次即可。
 
-### 要求
+### 环境要求
 
-- Windows 10 / 11
-- [Windows Terminal](https://aka.ms/terminal)：配色、雨幕和磷光效果都依赖它。没有的话，提示符和动效照样能用。
-- 显示缩放为 100% 时背景最清晰；其他缩放比例下，窗口最大化时最清晰。
+- Windows 10 或 11
+- [Windows Terminal](https://aka.ms/terminal)：配色、背景和磷光效果都依赖它。没有的话，提示符和动效照样可以用。
+- 显示缩放为 100% 时背景最清晰；其他缩放比例下，把窗口最大化效果最好。
 
 ## 自定义
 
-| 想改什么 | 怎么做 |
-|---|---|
-| 名字 | 改 `~\.config\omp\matrix-minimal.omp.json` 里的 `var.Name` |
-| 开场频率、关掉某个动效 | 在 `$PROFILE` 里、加载主题的那两行**之前**加上 `$MatrixFx = @{ Intro = 'daily'; Decode = $true; Glitch = $true }`。Intro 可选 `always`（每个新窗口，默认）、`daily`（每天一次）、`off` |
-| 动画没出现 | 运行 `Test-MatrixMinimal`，`intro` 那几行会说明原因（钩子没装上、今天已播过、出错信息等） |
-| 雨的疏密、亮度，或者换一种排布 | 改 `~\.config\omp\matrix-rain-bg.ps1` 顶部的 "Tweak me"，运行 `pwsh -File ~\.config\omp\matrix-rain-bg.ps1 -Seed 7`，然后重开标签页 |
-| 磷光的强弱 | 改 `~\.config\omp\matrix-phosphor.hlsl` 顶部的参数，保存后立即生效 |
-| 想要会动的代码雨 | 运行 `rain`，新开一个下雨的标签页。第一次运行时会在 Windows Terminal 里加一个 "Matrix Rain" 配置，以后也可以从标签栏的 + 菜单打开。关掉这个标签页，雨就停了（开着时会一直占用 GPU） |
-| 输出的颜色 | 改 Windows Terminal 设置里的 "Matrix Minimal" 配色（16 色加前景色；重新安装会覆盖）。PowerShell 7 的详细信息、`ls` 等颜色在 `$PSStyle` 里，在 `$PROFILE` 里、加载主题之前设置的值会保留 |
-| 哪些程序使用自己的配色 | `$MatrixNativeApps = 'claude', 'codex', 'nvim'`（同样放在加载主题之前） |
-
-运行 `Test-MatrixMinimal` 可以自检。
+| 想调整的          | 做法                                                                                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 名字            | 修改 `~\.config\omp\matrix-minimal.omp.json` 里的 `var.Name`                                                                                            |
+| 开场频率，或者关掉某个动效 | 在 `$PROFILE` 里加载主题的两行之前写上 `$MatrixFx = @{ Intro = 'daily'; Decode = $true; Glitch = $true }`。`Intro` 可以是 `always`（默认，每个新标签页都放）、`daily`（每天一次）或 `off` |
+| 背景雨的疏密、亮度和排布  | 修改 `~\.config\omp\matrix-rain-bg.ps1` 开头 "Tweak me" 部分的参数，运行 `pwsh -File ~\.config\omp\matrix-rain-bg.ps1 -Seed 7` 重新生成，再新开一个标签页                    |
+| 磷光的强弱         | 修改 `~\.config\omp\matrix-phosphor.hlsl` 开头的参数，保存后立即生效                                                                                               |
+| 输出的配色         | 在 Windows Terminal 的设置里修改 "Matrix Minimal" 配色，重新安装时会被覆盖。PowerShell 7 自己的输出颜色在 `$PSStyle` 里，在 `$PROFILE` 中加载主题之前设置的值会保留                              |
+| 保留原生配色的程序     | 在加载主题之前设置 `$MatrixNativeApps = 'claude', 'codex', 'nvim'`                                                                                           |
 
 ## 卸载
 
@@ -67,7 +74,7 @@ irm https://raw.githubusercontent.com/202030481266/matrix-minimal/main/install.p
 powershell -ExecutionPolicy Bypass -File "$HOME\.config\omp\uninstall.ps1"
 ```
 
-profile 里只会删除安装时加的那几行；Windows Terminal 的设置会恢复成安装前的值（`rain` 加的 "Matrix Rain" 配置也会删掉）；如果 oh-my-posh 是安装时下载的，卸载时会询问是否一并删除。
+卸载只会删掉安装时加进 profile 的那几行，Windows Terminal 的设置会还原成安装前的样子，`rain` 添加的 "Matrix Rain" 配置也会一并删除。如果 oh-my-posh 是安装时下载的，卸载时会问你要不要一起删掉。
 
 ## 致谢
 

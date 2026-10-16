@@ -37,12 +37,20 @@
 - **Windows Terminal**：settings.json 会热加载。着色器和背景图按配置（profile）生效，**不能按标签页设置**，也没有 VT 序列能改。设了背景图时，背景本身是透明的，着色器拿到的纹理是预乘 alpha（`matrix-rain.hlsl` 已按这个处理）。着色器不覆盖 padding 区域，所以 phosphor 的 VIGNETTE 默认为 0（否则边缘会出现接缝）。setup 只修改 name/source/commandline 匹配 `PowerShell|pwsh` 的配置，并跳过 Matrix Rain 的 GUID。
 - 端到端测试：用 `wt -w mmtest nt -p <guid>` 开一个单独的窗口，别动用户正在用的窗口。标签页里 shell 的父进程是 WindowsTerminal.exe，据此找到 PID，`AttachConsole` + `WriteConsoleInput` 注入按键（`-` 键是 VK 0xBD，不是 0x2D；开场动画会吞掉第一个键，先确认 shell 已经能执行命令），用 `PrintWindow(PW_RENDERFULLCONTENT)` 截图对比。GPU 用 `Get-Counter '\GPU Engine(pid_<WT pid>_*)\Utilization Percentage'`（这台机子的计数器名是英文）。`*>` 重定向在 PS5 写 UTF-16、在 PS7 写 UTF-8，用 `[IO.File]::ReadAllText` 读。**判断颜色要对截图做像素采样**，看缩略图会看走眼（曾经把 `#00FF41` 看成淡色）。预览配色可以在标签页里用 OSC 4/10 临时换调色板（结果是准的），也可以把配色写进 `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\<名字>\*.json`，然后用 `wt nt --colorScheme <名字>` 打开。管道会让 git 关掉颜色，要加 `-c color.ui=always`。`-File` 必须传绝对路径。不要调用 `python3`（Windows 应用商店的占位程序会卡住）。
 
+## README 的演示图
+
+`docs/demo.gif` 是 2026-10-16 重录的（38 秒，2.3 MB；名字 shulin，在临时仓库 `D:\项目\zion` 里录）：开场 → `pwd` → `git status -s` → `git diff` → 敲错 `matirx` 触发闪烁 → `matrix`（菜单、按 `r`、全屏代码雨、按空格醒来、台词）→ `rain`（切到 Matrix Rain 标签页，录约 2.5 秒动态雨后结束，接着循环）。`docs/screenshot.png` 是敲错命令后闪烁结束的那一帧（能看到 git 的配色）。两段整屏的雨占了 GIF 的大部分体积；改用 128 色只小 8%，所以保留 256 色。录制方法：
+- 打开一个单独的 WT 窗口：`wt -w mmrec --size 100,29 nt -p <pwsh guid> -d <仓库> pwsh.exe -NoLogo`（加 `-NoLogo` 去掉版本横幅）。用一个后台线程每 50 ms 调一次 `PrintWindow` 存 PNG，用 `WriteConsoleInput` 逐字"打字"。名字是临时改 `var.Name` 实现的，录完要按原字节写回去。
+- 这台机子开标签页后约 4 秒才开始放开场。**开场里按任何键都会跳过开场，而且这个键会被吞掉**，所以要等开场完全结束再输入。
+- 剪辑：裁掉标签栏和边框（终端区域从 x=8、y=41 开始，宽 1116）；从第一行开场文字出现前几帧开始；相同的帧合并；光标闪烁（A、B、A 这种只差光标的循环）合并成一帧；每次停顿最长 2.2 秒。结尾是动态雨，所以裁掉最后 1.2 秒，最后一帧只停 80 ms，接着从头循环。然后用 ffmpeg 的 concat 列表带上每帧时长，`palettegen` / `paletteuse=dither=none:diff_mode=rectangle` 生成 GIF（约 500 KB）。
+- PS7.4 以后，敲错命令会出现 `[General Feedback]` 提示（"最相似的命令是 matrix"），这是 PowerShell 自带的，录进去了。
+
 ## 用户的偏好
 
 - **不要处理 profile 加载慢的问题**：用户说那台机子本来就慢，不是这个主题造成的，他自己解决。
 - 动效要克制，不能影响性能（因此放弃了常驻的动态雨，改成静态雨幕 + 磷光）。
 - 不能污染别的程序的配色（claude、codex 保留原生主题）。
-- 动手大改之前先说方案；推送前确认。
+- 动手大改之前先说方案。**提交和推送不用再问**（2026-10-17 用户明确授权，限本项目）。
 
 ## 输出配色（2026-10-16，用户在 A/B/C/D 四个候选里选了 A）
 
