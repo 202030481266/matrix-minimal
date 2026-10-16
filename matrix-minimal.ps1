@@ -10,10 +10,10 @@
 $global:MatrixPathStyle   = 'bar'      # pwd 输出样式：'bar' 深绿高亮条 | 'plain' 无底色
 $global:MatrixMinimalHome = $PSScriptRoot
 # 动效（可以在 $PROFILE 里加载本文件之前先定义 $MatrixFx 覆盖）：
-#   Intro  新窗口开场 'daily' 每天第一次 | 'always' 每次 | 'off'，按任意键跳过
+#   Intro  新窗口开场 'always' 每个新窗口（默认）| 'daily' 每天第一次 | 'off'，按任意键跳过
 #   Decode 单独输入 pwd 时路径从片假名逐字解码
 #   Glitch 命令失败后新提示符闪一下
-if ($null -eq $global:MatrixFx) { $global:MatrixFx = @{ Intro = 'daily'; Decode = $true; Glitch = $true } }
+if ($null -eq $global:MatrixFx) { $global:MatrixFx = @{ Intro = 'always'; Decode = $true; Glitch = $true } }
 
 # 1. Prompt -------------------------------------------------------------------
 & {
@@ -219,6 +219,27 @@ function global:Test-MatrixMinimal {
         }
     }
 
+    # intro / glitch hooks
+    $readLine = Get-Command PSConsoleHostReadLine -CommandType Function -ErrorAction SilentlyContinue
+    if (-not ($readLine -and $readLine.ScriptBlock.ToString().Contains('Invoke-MatrixBeforeInput'))) {
+        & $add bad 'intro' '开场 / 故障闪烁的钩子没有装上（PSReadLine 没有加载？）'
+    } elseif ($global:PoshThemeCurrent -and $global:PoshThemeCurrent -ne 'matrix-minimal') {
+        & $add info 'intro' "theme 当前是 $global:PoshThemeCurrent：开场和故障闪烁只在 matrix-minimal 下出现"
+    } else {
+        $mode = "$($global:MatrixFx.Intro)"
+        $todayMark = Join-Path $env:LOCALAPPDATA ('matrix-minimal\intro-' + (Get-Date -Format 'yyyyMMdd'))
+        $detail = switch ($mode) {
+            'always' { '每个新窗口都播' }
+            'daily'  { if (Test-Path $todayMark) { '每天一次，今天已经播过' } else { '每天一次，今天还没播' } }
+            default  { "已关闭（`$MatrixFx.Intro = '$mode'）" }
+        }
+        & $add ok 'intro' "$detail；随时运行 Show-MatrixIntro 重播"
+    }
+    if ($global:MatrixHookError) {
+        $where = ($global:MatrixHookError.InvocationInfo.PositionMessage -split "`n")[0]
+        & $add bad 'intro' "上次出错：$($global:MatrixHookError.Exception.Message) $where"
+    }
+
     # admin
     if ($onWindows) {
         $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -291,6 +312,8 @@ Set-Alias -Name pwd -Value Show-MatrixLocation -Scope Global -Option AllScope -F
 # --- hooks ---
 # Remember the text of every prompt (the glitch redraws it). oh-my-posh makes a new prompt
 # function on every init (theme switch), so this is re-checked before each input.
+# The first prompt of a session also plays the intro: every host calls the prompt function,
+# whatever happened to PSReadLine's hook in the meantime.
 function global:Register-MatrixPrompt {
     $current = Get-Command prompt -CommandType Function -ErrorAction SilentlyContinue
     if (-not $current -or $current.ScriptBlock.ToString().Contains('MatrixPromptInner')) { return }
@@ -299,12 +322,35 @@ function global:Register-MatrixPrompt {
         # oh-my-posh reads the last command's success from this variable when it is set;
         # it must be taken before anything here changes $?
         $global:NVS_ORIGINAL_LASTEXECUTIONSTATUS = $?
+        if (-not $global:MatrixIntroChecked) { try { Start-MatrixSession } catch { $global:MatrixHookError = $_ } }
         try { $text = & $global:MatrixPromptInner }
         finally { Remove-Variable NVS_ORIGINAL_LASTEXECUTIONSTATUS -Scope Global -ErrorAction SilentlyContinue }
         $global:MatrixLastPrompt = -join $text
         # tab title = current path, unless a theme switcher (posh-theme) already manages titles
         if (-not $global:PoshThemeVersion) { try { $Host.UI.RawUI.WindowTitle = Get-MatrixTabPath } catch { } }
+        try { Register-MatrixReadLine } catch { }     # put the input hook back if PSReadLine replaced it
         $text
+    }
+}
+
+# Once per session, from the first prompt (or, when that prompt was not ours yet, the first
+# wait for input): tell the theme switcher about the easter egg and play the intro.
+function global:Start-MatrixSession([switch]$Redraw) {
+    if ($global:MatrixIntroChecked) { return }
+    $global:MatrixIntroChecked = $true
+    $global:MatrixGlitchHistoryId = (Get-History -Count 1).Id
+    # the "matrix" easter egg is interactive: no busy spinner from the theme switcher (posh-theme)
+    if ($global:PoshThemeInteractiveApps -and $global:PoshThemeInteractiveApps -notcontains 'matrix') {
+        $global:PoshThemeInteractiveApps += 'matrix'
+    }
+    if ([Console]::IsOutputRedirected -or -not $Host.UI.SupportsVirtualTerminal) { return }
+    if (Test-MatrixIntroDue) {
+        try { Show-MatrixIntro -Redraw:$Redraw }
+        catch {
+            # 'daily': give today's turn back, so the next window tries again
+            if ($global:MatrixIntroMark) { Remove-Item $global:MatrixIntroMark -ErrorAction SilentlyContinue }
+            throw
+        }
     }
 }
 
@@ -319,36 +365,33 @@ function global:Get-MatrixTabPath {
 }
 
 # PSReadLine calls PSConsoleHostReadLine whenever it waits for a command, with the new prompt
-# already on screen. Neither oh-my-posh nor theme switching replaces it.
+# already on screen. oh-my-posh and theme switching leave it alone.
 function global:Invoke-MatrixBeforeInput {
     if ([Console]::IsOutputRedirected -or -not $Host.UI.SupportsVirtualTerminal) { return }
     Register-MatrixPrompt
     # "theme -Update" reloads posh-theme, which resets its theme list
     if ($global:PoshThemes -and $global:PoshThemes -notcontains 'matrix-minimal') { $global:PoshThemes += 'matrix-minimal' }
-    if (-not $global:MatrixIntroChecked) {
-        $global:MatrixIntroChecked = $true
-        $global:MatrixGlitchHistoryId = (Get-History -Count 1).Id
-        # the "matrix" easter egg is interactive: no busy spinner from the theme switcher (posh-theme)
-        if ($global:PoshThemeInteractiveApps -and $global:PoshThemeInteractiveApps -notcontains 'matrix') {
-            $global:PoshThemeInteractiveApps += 'matrix'
-        }
-        if (Test-MatrixIntroDue) { Show-MatrixIntro -Redraw }
-        return
-    }
+    if (-not $global:MatrixIntroChecked) { Start-MatrixSession -Redraw; return }   # the first prompt was not ours yet
     if ($global:MatrixFx.Glitch) { Show-MatrixGlitch }
 }
 
-if (-not $global:MatrixReadLineInner -and (Get-Command PSConsoleHostReadLine -CommandType Function -ErrorAction SilentlyContinue)) {
-    $global:MatrixReadLineInner = (Get-Command PSConsoleHostReadLine -CommandType Function).ScriptBlock
-    function global:PSConsoleHostReadLine {
-        try { Invoke-MatrixBeforeInput } catch { }
+# Importing PSReadLine again (some hosts do it after the profile) brings back its own
+# PSConsoleHostReadLine; the prompt calls this every time to put ours back in front.
+function global:Register-MatrixReadLine {
+    $current = Get-Command PSConsoleHostReadLine -CommandType Function -ErrorAction SilentlyContinue
+    if (-not $current -or $current.ScriptBlock.ToString().Contains('Invoke-MatrixBeforeInput')) { return }
+    $global:MatrixReadLineInner = $current.ScriptBlock
+    Set-Item function:global:PSConsoleHostReadLine -Value {
+        try { Invoke-MatrixBeforeInput } catch { $global:MatrixHookError = $_ }   # shown by Test-MatrixMinimal
         & $global:MatrixReadLineInner
     }
 }
+Register-MatrixReadLine
 Register-MatrixPrompt
 
 # --- wake-up intro ---
 function global:Test-MatrixIntroDue {
+    $global:MatrixIntroMark = $null
     if ($global:PoshThemeCurrent -and $global:PoshThemeCurrent -ne 'matrix-minimal') { return $false }
     switch ("$($global:MatrixFx.Intro)") {
         'always' { return $true }
@@ -361,6 +404,7 @@ function global:Test-MatrixIntroDue {
                 [IO.File]::Open($mark, [IO.FileMode]::CreateNew).Dispose()
             } catch { return $false }
             Get-ChildItem $dir -Filter 'intro-*' | Where-Object { $_.FullName -ne $mark } | Remove-Item -ErrorAction SilentlyContinue
+            $global:MatrixIntroMark = $mark
             return $true
         }
     }
