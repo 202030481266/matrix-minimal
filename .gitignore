@@ -1,0 +1,6 @@
+# generated per machine by matrix-rain-bg.ps1
+matrix-rain-bg.png
+*.preview.png
+# backups and install state written by setup.ps1
+*.matrix-bak-*
+matrix-minimal.state.json

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Matrix Minimal: highlighted display for PathInfo objects.
+  Affects pwd / Get-Location / Resolve-Path / Push-Location -PassThru output.
+  Only the on-screen view changes; the objects you pipe stay untouched.
+-->
+<Configuration>
+  <ViewDefinitions>
+    <View>
+      <Name>MatrixMinimalPathInfo</Name>
+      <ViewSelectedBy>
+        <TypeName>System.Management.Automation.PathInfo</TypeName>
+      </ViewSelectedBy>
+      <CustomControl>
+        <CustomEntries>
+          <CustomEntry>
+            <CustomItem>
+              <ExpressionBinding>
+                <ScriptBlock>Format-MatrixPath $_.Path</ScriptBlock>
+              </ExpressionBinding>
+            </CustomItem>
+          </CustomEntry>
+        </CustomEntries>
+      </CustomControl>
+    </View>
+  </ViewDefinitions>
+</Configuration>

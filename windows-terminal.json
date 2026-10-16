@@ -1,0 +1,37 @@
+{
+  "schemes": [
+    {
+      "name": "Matrix Minimal",
+      "background": "#0D0208",
+      "foreground": "#00FF41",
+      "cursorColor": "#00FF41",
+      "selectionBackground": "#003B00",
+      "black": "#0D0208",
+      "red": "#FF3E5B",
+      "green": "#00C832",
+      "yellow": "#C5E478",
+      "blue": "#2FBF71",
+      "purple": "#6FD08C",
+      "cyan": "#5BE3A0",
+      "white": "#A8D5B5",
+      "brightBlack": "#3D8A50",
+      "brightRed": "#FF6B7F",
+      "brightGreen": "#00FF41",
+      "brightYellow": "#E6F59A",
+      "brightBlue": "#45D483",
+      "brightPurple": "#8CF0A8",
+      "brightCyan": "#7DFFB8",
+      "brightWhite": "#E8FFEE"
+    }
+  ],
+  "powershellProfiles": {
+    "colorScheme": "Matrix Minimal",
+    "cursorShape": "filledBox",
+    "opacity": 100,
+    "useAcrylic": false,
+    "backgroundImage": "%USERPROFILE%\\.config\\omp\\matrix-rain-bg.png",
+    "backgroundImageAlignment": "bottomLeft",
+    "backgroundImageOpacity": 1.0,
+    "experimental.pixelShaderPath": "%USERPROFILE%\\.config\\omp\\matrix-phosphor.hlsl"
+  }
+}

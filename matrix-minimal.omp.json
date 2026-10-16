@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "version": 4,
+  "final_space": true,
+  "var": {
+    "Name": "",
+    "RootMark": "#"
+  },
+  "palette": {
+    "rain": "#00FF41",
+    "matrix": "#008F11",
+    "ghost": "#3D8A50",
+    "glitch": "#FF3E5B"
+  },
+  "blocks": [
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "segments": [
+        {
+          "type": "session",
+          "style": "plain",
+          "foreground": "p:matrix",
+          "template": "{{ if .Var.Name }}{{ .Var.Name }}{{ else }}{{ .UserName }}{{ end }}{{ if .SSHSession }}@{{ .HostName }}{{ end }} "
+        },
+        {
+          "type": "git",
+          "style": "plain",
+          "foreground": "p:rain",
+          "template": "{{ .HEAD }}{{ if or .Working.Changed .Staging.Changed }}*{{ end }}{{ if gt .Ahead 0 }} +{{ .Ahead }}{{ end }}{{ if gt .Behind 0 }} -{{ .Behind }}{{ end }} ",
+          "options": {
+            "source": "cli",
+            "fetch_status": true,
+            "branch_icon": "",
+            "commit_icon": "@",
+            "tag_icon": "tag:",
+            "rebase_icon": "rebase:",
+            "cherry_pick_icon": "pick:",
+            "revert_icon": "revert:",
+            "merge_icon": "merge:",
+            "no_commits_icon": "init:"
+          }
+        },
+        {
+          "type": "status",
+          "style": "plain",
+          "foreground": "p:glitch",
+          "template": "{{ .Code }} "
+        },
+        {
+          "type": "text",
+          "style": "plain",
+          "foreground": "p:rain",
+          "foreground_templates": ["{{ if gt .Code 0 }}p:glitch{{ end }}"],
+          "template": "{{ if .Root }}{{ .Var.RootMark }}{{ else }}>{{ end }}"
+        }
+      ]
+    },
+    {
+      "type": "rprompt",
+      "segments": [
+        {
+          "type": "executiontime",
+          "style": "plain",
+          "foreground": "p:matrix",
+          "template": "{{ .FormattedMs }}",
+          "options": {
+            "threshold": 2000,
+            "style": "austin"
+          }
+        }
+      ]
+    }
+  ],
+  "secondary_prompt": {
+    "foreground": "p:ghost",
+    "template": ">> "
+  }
+}
