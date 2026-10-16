@@ -15,6 +15,7 @@
 - **pwd 解码**：单独输入 `pwd` 时，路径先是一串乱跳的片假名，再逐字解码成真实路径，以高亮条显示。
 - **故障闪烁**：命令失败后，提示符会红绿错位地抖一下。
 - **彩蛋**：输入 `matrix`，墨菲斯会让你选药丸。红色药丸带你进入全屏代码雨，按任意键醒来，并留下一句电影台词；蓝色药丸则让故事到此结束。
+- **会动的雨**：输入 `rain on`，背景换成一直在下的代码雨；`rain off` 换回静态雨幕。动态雨会持续占用显卡，看够了记得关。
 - **不污染别的程序**：`ls` 的目录名不再变成绿色色块；运行 `claude`、`codex` 时自动换回它们自己的配色。
 
 ![截图](docs/screenshot.png)
@@ -53,7 +54,7 @@ irm https://raw.githubusercontent.com/202030481266/matrix-minimal/main/install.p
 | 动画没出现 | 运行 `Test-MatrixMinimal`，`intro` 那几行会说明原因（钩子没装上、今天已播过、出错信息等） |
 | 雨的疏密、亮度，或者换一种排布 | 改 `~\.config\omp\matrix-rain-bg.ps1` 顶部的 "Tweak me"，运行 `pwsh -File ~\.config\omp\matrix-rain-bg.ps1 -Seed 7`，然后重开标签页 |
 | 磷光的强弱 | 改 `~\.config\omp\matrix-phosphor.hlsl` 顶部的参数，保存后立即生效 |
-| 想要会动的代码雨 | 在 Windows Terminal 设置里把像素着色器换成 `matrix-rain.hlsl`（会一直占用 GPU） |
+| 想要会动的代码雨 | `rain on` 打开，`rain off` 关掉，单独输入 `rain` 在两者之间切换（开着时会一直占用 GPU） |
 | 哪些程序使用自己的配色 | `$MatrixNativeApps = 'claude', 'codex', 'nvim'`（同样放在加载主题之前） |
 
 运行 `Test-MatrixMinimal` 可以自检。

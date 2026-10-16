@@ -135,8 +135,9 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
     float3 rgb  = lerp(TRAIL_COLOR, HEAD_COLOR, head);
     float  k    = rain * glyph * RAIN_STRENGTH * lerp(1.0, HEAD_BOOST, head);
 
-    // Only paint where the pixel still is background (keeps text readable).
-    float3 diff = abs(color.rgb - Background.rgb);
+    // Only paint where the pixel still is background (keeps text readable). The texture is
+    // premultiplied: with a background image the background is transparent, not Background.
+    float3 diff = abs(color.rgb - Background.rgb * color.a);
     float  dist = max(diff.r, max(diff.g, diff.b));
     float  isBg = 1.0 - smoothstep(TEXT_LOW, TEXT_HIGH, dist);
 

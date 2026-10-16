@@ -242,7 +242,7 @@ $files = if ($state -and $state.files) { @($state.files) } else {
     'matrix-minimal.omp.json', 'matrix-minimal.ps1', 'MatrixPath.format.ps1xml', 'matrix-terminal.ps1',
     'matrix-phosphor.hlsl', 'matrix-rain-bg.ps1', 'matrix-rain.hlsl', 'uninstall.ps1', 'matrix-rain-bg.png'
 }
-foreach ($f in @($files) + 'matrix-rain-bg.preview.png' + 'matrix-minimal.state.json') {
+foreach ($f in @($files) + 'matrix-rain-bg.preview.png' + 'matrix-rain-clear.png' + 'matrix-minimal.state.json') {
     Remove-Item (Join-Path $target $f) -Force -ErrorAction SilentlyContinue
 }
 if ((Test-Path $target) -and -not (Get-ChildItem $target -Force)) { Remove-Item $target }

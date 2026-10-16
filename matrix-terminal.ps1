@@ -1,4 +1,4 @@
-# ---------------------------------------------------------------------------
+﻿# ---------------------------------------------------------------------------
 #  Matrix Minimal: companions for the "Matrix Minimal" Windows Terminal scheme
 #  The scheme turns every ANSI colour green. That suits the prompt (which uses its
 #  own RGB colours anyway) but smears programs that pick ANSI colours themselves.
@@ -67,5 +67,54 @@ function global:$app {
     try { & `$target @args } finally { Set-MatrixNativeColors `$false }
 }
 "@))
+    }
+}
+
+# 3. Moving rain on demand -------------------------------------------------------
+#    rain on    the moving digital rain (matrix-rain.hlsl) in place of the still one;
+#               Windows Terminal then redraws all the time, which keeps the GPU busy
+#    rain off   back to the still rain image and the phosphor screen
+#    rain       switch between the two
+#    Only the theme's own file names are swapped inside settings.json, so comments and your
+#    other settings stay exactly as they are; the terminal picks the change up by itself.
+function global:rain {
+    param([string]$State)
+    if ($State -and $State -notin 'on', 'off') { Write-Host '用法：rain on | rain off | rain（切换）'; return }
+    $settings = @(
+        (Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'),
+        (Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json'),
+        (Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\settings.json')
+    ) | Where-Object { Test-Path $_ }
+    $found = @(foreach ($path in $settings) {
+        $text = [IO.File]::ReadAllText($path)
+        if ($text -match 'matrix-(phosphor|rain)\.hlsl') { @{ Path = $path; Text = $text } }
+    })
+    if (-not $found) { Write-Warning 'Windows Terminal 里没有使用 Matrix Minimal 的配置（先运行安装）'; return }
+    if (-not $State) { $State = if ($found | Where-Object { $_.Text -match 'matrix-rain\.hlsl' }) { 'off' } else { 'on' } }
+
+    $omp = Join-Path $HOME '.config\omp'
+    if ($State -eq 'on') {
+        if (-not (Test-Path (Join-Path $omp 'matrix-rain.hlsl'))) { Write-Warning "找不到 $omp\matrix-rain.hlsl（重新运行一次安装）"; return }
+        $clear = Join-Path $omp 'matrix-rain-clear.png'      # stands in for the still rain image
+        if (-not (Test-Path $clear)) {
+            Add-Type -AssemblyName System.Drawing
+            $bmp = New-Object System.Drawing.Bitmap 1, 1, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+            $bmp.SetPixel(0, 0, [System.Drawing.Color]::Transparent)
+            $bmp.Save($clear, [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+        }
+    }
+    foreach ($f in $found) {
+        $text = if ($State -eq 'on') { $f.Text.Replace('matrix-phosphor.hlsl', 'matrix-rain.hlsl').Replace('matrix-rain-bg.png', 'matrix-rain-clear.png') }
+                else { $f.Text.Replace('matrix-rain.hlsl', 'matrix-phosphor.hlsl').Replace('matrix-rain-clear.png', 'matrix-rain-bg.png') }
+        if ($text -eq $f.Text) { continue }
+        $b = [IO.File]::ReadAllBytes($f.Path)
+        $bom = $b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF
+        [IO.File]::WriteAllText($f.Path, $text, (New-Object Text.UTF8Encoding $bom))
+    }
+    if ($State -eq 'on') {
+        Write-Host '代码雨：开。所有 PowerShell 标签页的背景都在下雨了；它会一直占用显卡，看够了运行 rain off' -ForegroundColor Green
+    } else {
+        Write-Host '代码雨：关。换回静态雨幕和磷光效果' -ForegroundColor DarkGreen
     }
 }
