@@ -1,7 +1,8 @@
 ﻿# ---------------------------------------------------------------------------
 #  Matrix Minimal: companions for the "Matrix Minimal" Windows Terminal scheme
-#  The scheme turns every ANSI colour green. That suits the prompt (which uses its
-#  own RGB colours anyway) but smears programs that pick ANSI colours themselves.
+#  The prompt, the input and the rain use their own RGB greens. Command output gets
+#  the scheme: pale phosphor text, and ANSI colours that keep their meaning (red
+#  removed / error, green added / success, amber warning, cyan detail, blue, purple).
 #  The scheme applies whatever prompt theme is active, so $PROFILE loads this
 #  file for every theme:   . (Join-Path $HOME '.config/omp/matrix-terminal.ps1')
 # ---------------------------------------------------------------------------
@@ -9,10 +10,35 @@
 if (-not $env:WT_SESSION) { return }   # the scheme only exists in Windows Terminal
 
 # 1. PowerShell's own colours ------------------------------------------------
-#    Get-ChildItem paints directory names on a blue *background* by default, which the
-#    scheme turns into bright green blocks. Use a themed text colour instead.
+#    Verbose and debug messages are amber like warnings by default: give them colours of
+#    their own. Get-ChildItem paints directory names on a blue *background*; use a text
+#    colour, and colour media files too. Only PowerShell's defaults are replaced, so
+#    settings made in $PROFILE before this file is loaded stay.
 if ($PSStyle) {
-    $PSStyle.FileInfo.Directory = "$([char]27)[1;38;2;125;255;184m"   # bold #7DFFB8
+    & {
+        $e = [char]27
+        $f = $PSStyle.Formatting
+        if ($f.Verbose -eq "$e[33;1m") { $f.Verbose = "$e[36m" }    # cyan
+        if ($f.Debug -eq "$e[33;1m") { $f.Debug = "$e[35m" }        # purple
+        $fi = $PSStyle.FileInfo
+        if ($fi.Directory -eq "$e[44;1m") { $fi.Directory = "$e[1;38;2;125;255;184m" }   # bold #7DFFB8
+        $add = @{
+            "$e[35m"   = '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg', '.ico',
+                         '.mp3', '.wav', '.flac', '.mp4', '.mkv', '.mov', '.avi'
+            "$e[31;1m" = '.rar', '.xz', '.bz2', '.zst'                # with the built-in archives
+        }
+        foreach ($style in $add.Keys) {
+            foreach ($x in $add[$style]) { if (-not $fi.Extension.ContainsKey($x)) { $fi.Extension.Add($x, $style) } }
+        }
+    }
+} elseif ($Host.PrivateData -and $Host.PrivateData.PSObject.Properties['VerboseForegroundColor']) {
+    # Windows PowerShell: console colours (DarkCyan / DarkMagenta are the scheme's cyan / purple)
+    if ($Host.PrivateData.VerboseForegroundColor -eq 'Yellow') { $Host.PrivateData.VerboseForegroundColor = 'DarkCyan' }
+    if ($Host.PrivateData.DebugForegroundColor -eq 'Yellow') { $Host.PrivateData.DebugForegroundColor = 'DarkMagenta' }
+    # The progress bar is yellow on dark cyan: amber on cyan in this scheme, hard to read
+    if ($Host.PrivateData.ProgressForegroundColor -eq 'Yellow' -and $Host.PrivateData.ProgressBackgroundColor -eq 'DarkCyan') {
+        $Host.PrivateData.ProgressForegroundColor = 'Black'
+    }
 }
 
 # 2. Native colours inside AI command-line apps ------------------------------

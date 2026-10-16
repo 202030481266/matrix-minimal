@@ -16,7 +16,8 @@
 - **故障闪烁**：命令失败后，提示符会红绿错位地抖一下。
 - **彩蛋**：输入 `matrix`，墨菲斯会让你选药丸。红色药丸带你进入全屏代码雨，按任意键醒来，并留下一句电影台词；蓝色药丸则让故事到此结束。
 - **会动的雨**：输入 `rain`，会新开一个 "Matrix Rain" 标签页，里面的代码雨一直在下；别的标签页还是静态雨幕。动态雨会持续占用显卡（切到别的标签页也不会停），看够了关掉那个标签页就行。
-- **不污染别的程序**：`ls` 的目录名不再变成绿色色块；运行 `claude`、`codex` 时自动换回它们自己的配色。
+- **输出配色**：提示符、输入和雨幕是矩阵绿；命令输出的正文是淡磷光色，其余颜色各有含义：红色（红药丸）是删除和错误，绿色是新增和成功，琥珀色是警告和 commit 号，青色是 diff 的 `@@` 和详细信息，还有蓝药丸的蓝。git、npm、pytest 这些工具的输出因此一眼就能分清；`ls` 里图片、音视频是紫色，压缩包是红色。
+- **不污染别的程序**：`ls` 的目录名不再变成蓝色色块；运行 `claude`、`codex` 时自动换回它们自己的配色。
 
 ![截图](docs/screenshot.png)
 
@@ -55,6 +56,7 @@ irm https://raw.githubusercontent.com/202030481266/matrix-minimal/main/install.p
 | 雨的疏密、亮度，或者换一种排布 | 改 `~\.config\omp\matrix-rain-bg.ps1` 顶部的 "Tweak me"，运行 `pwsh -File ~\.config\omp\matrix-rain-bg.ps1 -Seed 7`，然后重开标签页 |
 | 磷光的强弱 | 改 `~\.config\omp\matrix-phosphor.hlsl` 顶部的参数，保存后立即生效 |
 | 想要会动的代码雨 | 运行 `rain`，新开一个下雨的标签页。第一次运行时会在 Windows Terminal 里加一个 "Matrix Rain" 配置，以后也可以从标签栏的 + 菜单打开。关掉这个标签页，雨就停了（开着时会一直占用 GPU） |
+| 输出的颜色 | 改 Windows Terminal 设置里的 "Matrix Minimal" 配色（16 色加前景色；重新安装会覆盖）。PowerShell 7 的详细信息、`ls` 等颜色在 `$PSStyle` 里，在 `$PROFILE` 里、加载主题之前设置的值会保留 |
 | 哪些程序使用自己的配色 | `$MatrixNativeApps = 'claude', 'codex', 'nvim'`（同样放在加载主题之前） |
 
 运行 `Test-MatrixMinimal` 可以自检。
