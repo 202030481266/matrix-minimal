@@ -113,7 +113,7 @@ function global:rain {
         [IO.File]::WriteAllText($f.Path, $text, (New-Object Text.UTF8Encoding $bom))
     }
     if ($State -eq 'on') {
-        Write-Host '代码雨：开。所有 PowerShell 标签页的背景都在下雨了；它会一直占用显卡，看够了运行 rain off' -ForegroundColor Green
+        Write-Host '代码雨：开。所有 PowerShell 标签页都会一起下雨（Windows Terminal 的着色器按配置生效，没法只给一个标签页）；它会一直占用显卡，看够了运行 rain off' -ForegroundColor Green
     } else {
         Write-Host '代码雨：关。换回静态雨幕和磷光效果' -ForegroundColor DarkGreen
     }
