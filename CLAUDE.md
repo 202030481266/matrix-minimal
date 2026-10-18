@@ -41,10 +41,13 @@
 
 ## README 的演示图
 
-`docs/demo.gif` 是 2026-10-16 重录的（38 秒，2.3 MB；名字 shulin，在临时仓库 `D:\项目\zion` 里录）：开场 → `pwd` → `git status -s` → `git diff` → 敲错 `matirx` 触发闪烁 → `matrix`（菜单、按 `r`、全屏代码雨、按空格醒来、台词）→ `rain`（切到 Matrix Rain 标签页，录约 2.5 秒动态雨后结束，接着循环）。`docs/screenshot.png` 是敲错命令后闪烁结束的那一帧（能看到 git 的配色）。两段整屏的雨占了 GIF 的大部分体积；改用 128 色只小 8%，所以保留 256 色。录制方法：
-- 打开一个单独的 WT 窗口：`wt -w mmrec --size 100,29 nt -p <pwsh guid> -d <仓库> pwsh.exe -NoLogo`（加 `-NoLogo` 去掉版本横幅）。用一个后台线程每 50 ms 调一次 `PrintWindow` 存 PNG，用 `WriteConsoleInput` 逐字"打字"。名字是临时改 `var.Name` 实现的，录完要按原字节写回去。
-- 这台机子开标签页后约 4 秒才开始放开场。**开场里按任何键都会跳过开场，而且这个键会被吞掉**，所以要等开场完全结束再输入。
-- 剪辑：裁掉标签栏和边框（终端区域从 x=8、y=41 开始，宽 1116）；从第一行开场文字出现前几帧开始；相同的帧合并；光标闪烁（A、B、A 这种只差光标的循环）合并成一帧；每次停顿最长 2.2 秒。结尾是动态雨，所以裁掉最后 1.2 秒，最后一帧只停 80 ms，接着从头循环。然后用 ffmpeg 的 concat 列表带上每帧时长，`palettegen` / `paletteuse=dither=none:diff_mode=rectangle` 生成 GIF（约 500 KB）。
+`docs/demo.gif` 是 2026-10-18 重录的（为了开场结尾的 DESERT 大字；37.7 秒，3.3 MB，1116×920，346 帧；名字 shulin，在临时仓库 `D:\项目\zion` 里录，录完删掉了）：开场 → `pwd` → `git status -s` → `git diff` → 敲错 `matirx` 触发闪烁 → `matrix`（菜单、按 `r`、全屏代码雨、按空格醒来、台词）→ `rain`（切到 Matrix Rain 标签页，约 1.7 秒动态雨后结束，接着循环）。`docs/screenshot.png` 是敲错命令后闪烁结束的那一帧（能看到大字和 git 的配色）。两段整屏的雨占了 GIF 的大部分体积；改用 128 色只小 8%，所以保留 256 色。录制方法：
+- zion 仓库：`neo.ps1` 提交过的内容是 `$choice = 'red pill'` / `$spoon = $true` / `Follow-WhiteRabbit`，工作区把第二行改成 `$spoon = $null   # there is no spoon`（blob 正好是 `1202f88..bf5c812`）；`oracle.md` 已暂存，`morpheus.txt` 未跟踪。文件要写成 CRLF，否则 autocrlf 会在 `git diff` 里打出换行警告。
+- 打开一个单独的 WT 窗口：`wt -w mmrec --size 100,36 nt -p <默认的 PowerShell 配置 guid> -d <仓库> pwsh.exe -NoLogo`。大字比原来的一行多占 7 行，36 行正好让敲错命令后的整屏（大字 + pwd + status + diff + 报错）不滚动。用一个后台线程每 50 ms 调一次 `PrintWindow`（进程先设成 per-monitor DPI aware），另开 3 个线程编码 PNG；用 `WriteConsoleInput` 逐字"打字"（每键 55–130 ms）。脚本用 Windows PowerShell 5.1 跑（C# 里直接用 System.Drawing），文件要带 BOM。
+- **开场里按任何键都会跳过开场，而且这个键会被吞掉**：attach 到 shell 的控制台后用 `ReadConsoleOutputCharacter` 读第 10 行，以 `shulin` 开头说明开场（含解码）结束、提示符已经重画。
+- 录制窗口弹出来后被手动最小化过一次（GetWindowRect 变成 160×28，帧全废）：录制线程发现 `IsIconic` 就 `ShowWindow(SW_SHOWNOACTIVATE)` 恢复（不抢焦点）。被别的窗口挡住不影响 `PrintWindow`。
+- `rain` 打开的新标签页约 2 秒后也会开始播开场（Intro = always），GIF 要在那之前结束：量每帧第 2 行的亮绿像素，找新标签页里开场文字出现的时刻。
+- 剪辑：裁掉标签栏和边框（终端区域 x=8、y=41、1116×920）；从第一行开场文字出现前几帧开始；相同的帧合并；光标闪烁（A、B、A，B 只在一个格子里不同）合并成一帧，磷光让光标的差异框有 17×31，阈值用宽 ≤24、高 ≤36（打一个字至少变两格，不会被误合并；失败闪烁也不会）；每次停顿最长 2.2 秒，大字那一帧特意给满 2.2 秒；最后一帧只停 80 ms，接着从头循环。然后用 ffmpeg 的 concat 列表带上每帧时长，两遍：`palettegen=reserve_transparent=0`，再 `paletteuse=dither=none:diff_mode=rectangle` 加 `-fps_mode vfr`。
 - PS7.4 以后，敲错命令会出现 `[General Feedback]` 提示（"最相似的命令是 matrix"），这是 PowerShell 自带的，录进去了。
 
 ## 用户的偏好
