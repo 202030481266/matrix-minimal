@@ -33,7 +33,9 @@
 - `Get-Command` 查不存在的命令很慢（会扫描所有模块），判断程序是否已安装改用 PATH + `File.Exists`。
 - oh-my-posh：用 `extends` 继承配置时会丢掉 `final_space`；继承的 `POSH_SESSION_ID` 会缓存配置，导致 `--config` 不生效；`transient_prompt` 每次回车多启动一个进程（已删除）。MSIX 版每次启动多约 130ms，所以 setup 下载的是官方独立 exe（v29.0.2，校验 SHA256 和签名），放到 `%LOCALAPPDATA%\Programs\oh-my-posh\bin`。写入用户 PATH 后用 `[Environment]::SetEnvironmentVariable(..., 'User')` 广播 WM_SETTINGCHANGE；`matrix-minimal.ps1` 里还会兜底把这个目录加进 `$env:Path`。
 - **posh-theme（用户的 `theme` 工具）**：如果它已加载，主题会注册进它的 `$PoshThemes`，使用存根 `~\.posh-themes\matrix-minimal.omp.json`（`{"extends": ..., "final_space": true}`），并且只在 `~\.posh-theme` 为 `matrix-minimal` 时调用 `Initialize-PoshTheme`，不自己运行 `oh-my-posh init`。posh-theme 会接管 `Set-PoshContext`；有 `$PoshThemeVersion` 时由它设置标签页标题。
-- 开场动画由第一次 `prompt` 触发，`PSConsoleHostReadLine` 的包装里有兜底；钩子被别的东西替换时会重新包装，出错信息存进 `$global:MatrixHookError`。`$MatrixFx.Intro` 默认是 `'always'`（**用户明确要求每开一个标签页播放一次**），也可设为 `daily`、`off`。
+- 开场动画由第一次 `prompt` 触发，`PSConsoleHostReadLine` 的包装里有兜底；出错信息存进 `$global:MatrixHookError`。`$MatrixFx.Intro` 默认是 `'always'`（**用户明确要求每开一个标签页播放一次**），也可设为 `daily`、`off`。
+- **钩子会被别人包在外面（VS Code）**：VS Code 的 shell integration（`resources\app\out\vs\workbench\contrib\terminal\common\scripts\shellIntegration.ps1`）在 profile **之后**运行，把当时的 `prompt` 和 `PSConsoleHostReadLine` 存起来再包一层，里面用 `.Invoke()` 调原来的。旧版钩子发现"外面不是我"就重新包装，而且被包的函数存在同一个全局变量里，结果形成 我→VS Code→我（旧）→VS Code… 的死循环：动画播完后终端吃满一个核，打不了字（2026-10-18 修好）。现在：每个包装用 `GetNewClosure()` 各自保存自己包着的函数，不会成环；只有上一轮另一个钩子**没有被调用到**时才重新包装（`$MatrixPromptSeen` / `$MatrixReadLineSeen`；在 read-line 钩子里面画的提示符，比如开场重画、Ctrl+L，不算一轮，用 `$MatrixInReadLine` 区分）；`prompt` 包装调里层之前用 `Write-Error -ErrorAction Ignore` 把 `$?` 还原，VS Code 的成功/失败标记才对。用户的 profile 里 posh-theme 会在本主题之后重新 init oh-my-posh，所以 VS Code 里实际是 `prompt` = 我→VS Code→omp，`PSConsoleHostReadLine` = VS Code→我→PSReadLine。测法：写一个只 dot-source 上面那个 shellIntegration.ps1 的脚本，`wt -w mmtest nt pwsh.exe -NoLogo -NoExit -File <绝对路径>`（PS5 同理），注入按键执行命令；也可以用一个替身 `PSConsoleHostReadLine` 在后台控制台里循环跑 `prompt` + `PSConsoleHostReadLine`（不能重定向输出，否则钩子直接 return）。VS Code 终端里 `TERM_PROGRAM=vscode`，从 WT 启动的 VS Code 会继承 `WT_SESSION`，所以 `matrix-terminal.ps1` 两个都判断。
+- 用户的终端尺寸（2026-10-18 实测）：VS Code 80×30，WT 126×36。开场结尾的大字要放得下 80 列、不能太高。
 - **Windows Terminal**：settings.json 会热加载。着色器和背景图按配置（profile）生效，**不能按标签页设置**，也没有 VT 序列能改。设了背景图时，背景本身是透明的，着色器拿到的纹理是预乘 alpha（`matrix-rain.hlsl` 已按这个处理）。着色器不覆盖 padding 区域，所以 phosphor 的 VIGNETTE 默认为 0（否则边缘会出现接缝）。setup 只修改 name/source/commandline 匹配 `PowerShell|pwsh` 的配置，并跳过 Matrix Rain 的 GUID。
 - 端到端测试：用 `wt -w mmtest nt -p <guid>` 开一个单独的窗口，别动用户正在用的窗口。标签页里 shell 的父进程是 WindowsTerminal.exe，据此找到 PID，`AttachConsole` + `WriteConsoleInput` 注入按键（`-` 键是 VK 0xBD，不是 0x2D；开场动画会吞掉第一个键，先确认 shell 已经能执行命令），用 `PrintWindow(PW_RENDERFULLCONTENT)` 截图对比。GPU 用 `Get-Counter '\GPU Engine(pid_<WT pid>_*)\Utilization Percentage'`（这台机子的计数器名是英文）。`*>` 重定向在 PS5 写 UTF-16、在 PS7 写 UTF-8，用 `[IO.File]::ReadAllText` 读。**判断颜色要对截图做像素采样**，看缩略图会看走眼（曾经把 `#00FF41` 看成淡色）。预览配色可以在标签页里用 OSC 4/10 临时换调色板（结果是准的），也可以把配色写进 `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\<名字>\*.json`，然后用 `wt nt --colorScheme <名字>` 打开。管道会让 git 关掉颜色，要加 `-c color.ui=always`。`-File` 必须传绝对路径。不要调用 `python3`（Windows 应用商店的占位程序会卡住）。
 
@@ -51,6 +53,10 @@
 - 动效要克制，不能影响性能（因此放弃了常驻的动态雨，改成静态雨幕 + 磷光）。
 - 不能污染别的程序的配色（claude、codex 保留原生主题）。
 - 动手大改之前先说方案。**提交和推送不用再问**（2026-10-17 用户明确授权，限本项目）。
+
+## 开场结尾的大字（2026-10-18，用户在三个候选里选的）
+
+"Welcome to the desert of the real" 改成：`W E L C O M E   T O   T H E`（小字，`#3D8A50`）、DESERT 用 figlet "ANSI Shadow" 大字（`█` 字面 `#00FF41`，框线阴影 `#008F11`，成品直接存在 `$MatrixDesert`，没有字库）、右对齐的 `O F   T H E   R E A L`。共 8 行、左边空 2 列，宽 51 列。出现方式选的是**片假名解码**：和 pwd 一样从左到右 14 帧 × 20 ms，解码边缘两列用雨滴头的 `#C7FFD1`，按键立即显示完整；开场被按键跳过时直接显示。窗口不到 52 列或 12 行时退回原来的一行小字。落选的：整句 3D 大字（20 行高，80 列放不下）、整句 Calvin S 细线体。
 
 ## 输出配色（2026-10-16，用户在 A/B/C/D 四个候选里选了 A）
 

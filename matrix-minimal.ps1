@@ -167,7 +167,9 @@ function global:Test-MatrixMinimal {
     }
 
     # Windows Terminal
-    if (-not $env:WT_SESSION) {
+    if ($env:TERM_PROGRAM -eq 'vscode') {
+        & $add info 'terminal' 'VS Code 终端：配色和代码雨只在 Windows Terminal 中生效'
+    } elseif (-not $env:WT_SESSION) {
         & $add bad 'terminal' '不在 Windows Terminal 里：配色和代码雨只在 Windows Terminal 中生效'
     } else {
         $candidates = @()
@@ -219,9 +221,10 @@ function global:Test-MatrixMinimal {
         }
     }
 
-    # intro / glitch hooks
+    # intro / glitch hooks (another wrapper may sit in front of ours, e.g. VS Code's: then ours
+    # ran when this command was read)
     $readLine = Get-Command PSConsoleHostReadLine -CommandType Function -ErrorAction SilentlyContinue
-    if (-not ($readLine -and $readLine.ScriptBlock.ToString().Contains('Invoke-MatrixBeforeInput'))) {
+    if (-not ($global:MatrixReadLineSeen -or ($readLine -and $readLine.ScriptBlock.ToString().Contains('Invoke-MatrixReadLine')))) {
         & $add bad 'intro' '开场 / 故障闪烁的钩子没有装上（PSReadLine 没有加载？）'
     } elseif ($global:PoshThemeCurrent -and $global:PoshThemeCurrent -ne 'matrix-minimal') {
         & $add info 'intro' "theme 当前是 $global:PoshThemeCurrent：开场和故障闪烁只在 matrix-minimal 下出现"
@@ -310,27 +313,45 @@ function global:Show-MatrixLocation {
 Set-Alias -Name pwd -Value Show-MatrixLocation -Scope Global -Option AllScope -Force   # AllScope: Windows PowerShell's pwd has it
 
 # --- hooks ---
-# Remember the text of every prompt (the glitch redraws it). oh-my-posh makes a new prompt
-# function on every init (theme switch), so this is re-checked before each input.
-# The first prompt of a session also plays the intro: every host calls the prompt function,
-# whatever happened to PSReadLine's hook in the meantime.
+# Two hooks, each wrapping the function that was there before:
+#   prompt                 remembers the text of every prompt (the glitch redraws it); the first
+#                          prompt of a session plays the intro (every host calls the prompt)
+#   PSConsoleHostReadLine  PSReadLine calls it whenever it waits for a command, with the new
+#                          prompt already on screen: the glitch, and the intro when the first
+#                          prompt was not ours yet
+# Others replace them later (oh-my-posh makes a new prompt on every init, i.e. theme switch;
+# importing PSReadLine again brings back its own function) or wrap them in turn (VS Code's
+# shell integration, after the profile). So each hook checks that the other one still ran in
+# the last round and wraps whatever is there now if not; a wrapper around ours still runs ours.
+# Each wrapper keeps the function it wraps for itself (GetNewClosure): wrappers around
+# wrappers never call each other in a loop.
 function global:Register-MatrixPrompt {
     $current = Get-Command prompt -CommandType Function -ErrorAction SilentlyContinue
-    if (-not $current -or $current.ScriptBlock.ToString().Contains('MatrixPromptInner')) { return }
-    $global:MatrixPromptInner = $current.ScriptBlock
-    Set-Item function:global:prompt -Value {
-        # oh-my-posh reads the last command's success from this variable when it is set;
-        # it must be taken before anything here changes $?
-        $global:NVS_ORIGINAL_LASTEXECUTIONSTATUS = $?
+    if (-not $current -or $current.ScriptBlock.ToString().Contains('Invoke-MatrixPrompt')) { return }
+    $inner = $current.ScriptBlock
+    # $? (the last command's success) has to be taken before anything else runs
+    Set-Item function:global:prompt -Value { Invoke-MatrixPrompt $inner $? }.GetNewClosure()
+}
+
+function global:Invoke-MatrixPrompt([scriptblock]$Inner, [bool]$LastStatus) {
+    # oh-my-posh reads the last command's success from this variable when it is set
+    $global:NVS_ORIGINAL_LASTEXECUTIONSTATUS = $LastStatus
+    if (-not $global:MatrixInReadLine) {        # not a prompt redrawn while waiting for input
+        $global:MatrixPromptSeen = $true
         if (-not $global:MatrixIntroChecked) { try { Start-MatrixSession } catch { $global:MatrixHookError = $_ } }
-        try { $text = & $global:MatrixPromptInner }
-        finally { Remove-Variable NVS_ORIGINAL_LASTEXECUTIONSTATUS -Scope Global -ErrorAction SilentlyContinue }
-        $global:MatrixLastPrompt = -join $text
-        # tab title = current path, unless a theme switcher (posh-theme) already manages titles
-        if (-not $global:PoshThemeVersion) { try { $Host.UI.RawUI.WindowTitle = Get-MatrixTabPath } catch { } }
-        try { Register-MatrixReadLine } catch { }     # put the input hook back if PSReadLine replaced it
-        $text
+        # put the input hook back if the last round went without it ($null: no round yet)
+        if ($global:MatrixReadLineSeen -eq $false) { try { Register-MatrixReadLine } catch { } }
+        $global:MatrixReadLineSeen = $false
     }
+    try {
+        # $? again for the wrapped prompt: when it is a wrapper itself (VS Code's), it reads it
+        if (-not $LastStatus) { Write-Error 'last command failed' -ErrorAction Ignore }
+        $text = & $Inner
+    } finally { Remove-Variable NVS_ORIGINAL_LASTEXECUTIONSTATUS -Scope Global -ErrorAction SilentlyContinue }
+    $global:MatrixLastPrompt = -join $text
+    # tab title = current path, unless a theme switcher (posh-theme) already manages titles
+    if (-not $global:PoshThemeVersion) { try { $Host.UI.RawUI.WindowTitle = Get-MatrixTabPath } catch { } }
+    $text
 }
 
 # Once per session, from the first prompt (or, when that prompt was not ours yet, the first
@@ -364,27 +385,30 @@ function global:Get-MatrixTabPath {
     $p
 }
 
-# PSReadLine calls PSConsoleHostReadLine whenever it waits for a command, with the new prompt
-# already on screen. oh-my-posh and theme switching leave it alone.
+function global:Register-MatrixReadLine {
+    $current = Get-Command PSConsoleHostReadLine -CommandType Function -ErrorAction SilentlyContinue
+    if (-not $current -or $current.ScriptBlock.ToString().Contains('Invoke-MatrixReadLine')) { return }
+    $inner = $current.ScriptBlock
+    Set-Item function:global:PSConsoleHostReadLine -Value { Invoke-MatrixReadLine $inner }.GetNewClosure()
+}
+
+function global:Invoke-MatrixReadLine([scriptblock]$Inner) {
+    $global:MatrixReadLineSeen = $true
+    $global:MatrixInReadLine = $true            # prompts from here on are redraws (intro, Ctrl+L)
+    try {
+        try { Invoke-MatrixBeforeInput } catch { $global:MatrixHookError = $_ }   # shown by Test-MatrixMinimal
+        & $Inner
+    } finally { $global:MatrixInReadLine = $false }
+}
+
 function global:Invoke-MatrixBeforeInput {
     if ([Console]::IsOutputRedirected -or -not $Host.UI.SupportsVirtualTerminal) { return }
-    Register-MatrixPrompt
+    if (-not $global:MatrixPromptSeen) { Register-MatrixPrompt }   # the last prompt was not ours
+    $global:MatrixPromptSeen = $false
     # "theme -Update" reloads posh-theme, which resets its theme list
     if ($global:PoshThemes -and $global:PoshThemes -notcontains 'matrix-minimal') { $global:PoshThemes += 'matrix-minimal' }
     if (-not $global:MatrixIntroChecked) { Start-MatrixSession -Redraw; return }   # the first prompt was not ours yet
     if ($global:MatrixFx.Glitch) { Show-MatrixGlitch }
-}
-
-# Importing PSReadLine again (some hosts do it after the profile) brings back its own
-# PSConsoleHostReadLine; the prompt calls this every time to put ours back in front.
-function global:Register-MatrixReadLine {
-    $current = Get-Command PSConsoleHostReadLine -CommandType Function -ErrorAction SilentlyContinue
-    if (-not $current -or $current.ScriptBlock.ToString().Contains('Invoke-MatrixBeforeInput')) { return }
-    $global:MatrixReadLineInner = $current.ScriptBlock
-    Set-Item function:global:PSConsoleHostReadLine -Value {
-        try { Invoke-MatrixBeforeInput } catch { $global:MatrixHookError = $_ }   # shown by Test-MatrixMinimal
-        & $global:MatrixReadLineInner
-    }
 }
 Register-MatrixReadLine
 Register-MatrixPrompt
@@ -472,6 +496,65 @@ function global:Show-MatrixRain([int]$Ms = 1000, [switch]$UntilKey) {
     }
 }
 
+# The intro's last words, "Welcome to the desert of the real": DESERT in big letters (figlet's
+# "ANSI Shadow": blocks for the face, box lines for the shadow), the rest small around it.
+$global:MatrixDesert = @(
+    '██████╗ ███████╗███████╗███████╗██████╗ ████████╗'
+    '██╔══██╗██╔════╝██╔════╝██╔════╝██╔══██╗╚══██╔══╝'
+    '██║  ██║█████╗  ███████╗█████╗  ██████╔╝   ██║   '
+    '██║  ██║██╔══╝  ╚════██║██╔══╝  ██╔══██╗   ██║   '
+    '██████╔╝███████╗███████║███████╗██║  ██║   ██║   '
+    '╚═════╝ ╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝   ╚═╝   '
+)
+
+# Draws them at the top of the (cleared) screen, decoding from katakana left to right like
+# pwd (~0.3 s; a key shows them at once), or at once with -Instant. One plain line when the
+# window is too small for the big letters.
+function global:Show-MatrixWelcome([switch]$Instant) {
+    $e = [char]27
+    $out = $Host.UI                 # Unicode-safe (Console.Out would turn katakana into ? on some code pages)
+    $big = $global:MatrixDesert
+    $w = $big[0].Length
+    if ([Console]::WindowWidth -lt $w + 3 -or [Console]::WindowHeight -lt 12) {
+        $out.Write("$e[38;2;61;138;80mWelcome to the desert of the real.$e[0m`r`n`r`n")
+        return
+    }
+    $lines = @('W E L C O M E   T O   T H E') + $big + @('O F   T H E   R E A L'.PadLeft($w))
+    $small = "$e[38;2;61;138;80m"
+    $face = "$e[38;2;0;255;65m"
+    $shadow = "$e[38;2;0;143;17m"
+    $head = "$e[38;2;199;255;209m"                  # the decoding edge, like the head of a raindrop
+    $kana = $global:MatrixKanaNarrow                # every cell here is one column wide
+    $rng = $global:MatrixRng
+    $f = if ($Instant) { 14 } else { 0 }
+    while ($true) {
+        $edge = [int][math]::Floor(($w + 1) * $f / 14)     # columns left of it are decoded
+        $sb = New-Object Text.StringBuilder
+        [void]$sb.Append("$e[H")
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+            $last = ''
+            [void]$sb.Append('  ')
+            for ($k = 0; $k -lt $line.Length; $k++) {
+                $c = $line[$k]
+                if ($c -eq ' ') { [void]$sb.Append(' '); continue }
+                $color = if ($i -eq 0 -or $i -eq $lines.Count - 1) { $small } elseif ($c -eq [char]0x2588) { $face } else { $shadow }
+                if ($k -ge $edge) {
+                    if ($k -lt $edge + 2) { $color = $head }
+                    $c = $kana[$rng.Next($kana.Length)]
+                }
+                if ($color -ne $last) { [void]$sb.Append($color); $last = $color }
+                [void]$sb.Append($c)
+            }
+            [void]$sb.Append("$e[0m`r`n")
+        }
+        $out.Write($sb.ToString())
+        if ($f -ge 14) { break }
+        if (Wait-MatrixKey 20) { [void][Console]::ReadKey($true); $f = 14 } else { $f++ }
+    }
+    $out.Write("`r`n")
+}
+
 # Run it by hand to show it off; -Redraw (used at startup) also draws the prompt again,
 # because the intro clears the prompt that was already on screen.
 function global:Show-MatrixIntro {
@@ -507,8 +590,9 @@ function global:Show-MatrixIntro {
         if (-not $skipped) { $skipped = Show-MatrixRain 800 }
     } finally {
         if ($skipped -and [Console]::KeyAvailable) { [void][Console]::ReadKey($true) }   # the key only meant "skip"
+        $out.Write("$e[0m$e[2J$e[H")
+        try { Show-MatrixWelcome -Instant:$skipped } catch { $global:MatrixHookError = $_ }   # skipped: at once
         [Console]::TreatControlCAsInput = $ctrlC
-        $out.Write("$e[0m$e[2J$e[H$e[38;2;61;138;80mWelcome to the desert of the real.$e[0m`r`n`r`n")
         if ($Redraw) { $out.Write(-join (prompt)) }  # the prompt again, on the cleared screen
         $out.Write("$e[?25h")
     }

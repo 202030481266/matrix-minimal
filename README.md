@@ -20,7 +20,7 @@
 
 - 文字默认带一层淡淡的荧光和细扫描线，参考了老式磷光显示器的风格。
 
-- 动画开场：默认每次新开一个标签页都会执行动画，屏幕上逐字打出 "Wake up, your name..."，接着下一阵代码雨，最后停在 "Welcome to the desert of the real."。按任意键可以跳过，运行 `Show-MatrixIntro` 可以重播，嫌烦也可以改成每天只放一次。
+- 动画开场：默认每次新开一个标签页都会执行动画，屏幕上逐字打出 "Wake up, your name..."，接着下一阵代码雨，最后 "Welcome to the desert of the real" 从片假名里逐列解码出来，其中 DESERT 是带阴影的大字（窗口太窄时只显示一行小字）。按任意键可以跳过，运行 `Show-MatrixIntro` 可以重播，嫌烦也可以改成每天只放一次。
 
 - `pwd` 命令特效：输出的路径会先变成一串乱跳的片假名，再逐字解码出来。
 
@@ -54,7 +54,7 @@ irm https://raw.githubusercontent.com/202030481266/matrix-minimal/main/install.p
 ### 环境要求
 
 - Windows 10 或 11
-- [Windows Terminal](https://aka.ms/terminal)：配色、背景和磷光效果都依赖它。没有的话，提示符和动效照样可以用。
+- [Windows Terminal](https://aka.ms/terminal)：配色、背景和磷光效果都依赖它。没有的话，提示符和动效照样可以用，VS Code 的终端里也一样。
 - 显示缩放为 100% 时背景最清晰；其他缩放比例下，把窗口最大化效果最好。
 
 ## 自定义

@@ -7,7 +7,9 @@
 #  file for every theme:   . (Join-Path $HOME '.config/omp/matrix-terminal.ps1')
 # ---------------------------------------------------------------------------
 
-if (-not $env:WT_SESSION) { return }   # the scheme only exists in Windows Terminal
+# The scheme only exists in Windows Terminal. VS Code started from a Windows Terminal tab
+# inherits WT_SESSION, so its terminal says which one it is.
+if (-not $env:WT_SESSION -or $env:TERM_PROGRAM -eq 'vscode') { return }
 
 # 1. PowerShell's own colours ------------------------------------------------
 #    Verbose and debug messages are amber like warnings by default: give them colours of
