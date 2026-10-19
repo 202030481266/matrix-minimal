@@ -33,7 +33,7 @@
 - `Get-Command` 查不存在的命令很慢（会扫描所有模块），判断程序是否已安装改用 PATH + `File.Exists`。
 - oh-my-posh：用 `extends` 继承配置时会丢掉 `final_space`；继承的 `POSH_SESSION_ID` 会缓存配置，导致 `--config` 不生效；`transient_prompt` 每次回车多启动一个进程（已删除）。MSIX 版每次启动多约 130ms，所以 setup 下载的是官方独立 exe（v29.0.2，校验 SHA256 和签名），放到 `%LOCALAPPDATA%\Programs\oh-my-posh\bin`。写入用户 PATH 后用 `[Environment]::SetEnvironmentVariable(..., 'User')` 广播 WM_SETTINGCHANGE；`matrix-minimal.ps1` 里还会兜底把这个目录加进 `$env:Path`。
 - **posh-theme（用户的 `theme` 工具）**：如果它已加载，主题会注册进它的 `$PoshThemes`，使用存根 `~\.posh-themes\matrix-minimal.omp.json`（`{"extends": ..., "final_space": true}`），并且只在 `~\.posh-theme` 为 `matrix-minimal` 时调用 `Initialize-PoshTheme`，不自己运行 `oh-my-posh init`。posh-theme 会接管 `Set-PoshContext`；有 `$PoshThemeVersion` 时由它设置标签页标题。
-- 开场动画由第一次 `prompt` 触发，`PSConsoleHostReadLine` 的包装里有兜底；出错信息存进 `$global:MatrixHookError`。`$MatrixFx.Intro` 默认是 `'always'`（**用户明确要求每开一个标签页播放一次**），也可设为 `daily`、`off`。
+- 开场动画由第一次 `prompt` 触发，`PSConsoleHostReadLine` 的包装里有兜底；出错信息存进 `$global:MatrixHookError`。`$MatrixFx.Intro` 默认是 `'launch'`（2026-10-18 用户改的：每开一个标签页都播太频繁，**每次启动 Windows Terminal 播一次**，其余新标签页只解码结尾的 DESERT 大字），也可设为 `always`、`daily`（没轮到的标签页同样只显示大字）、`off`。`launch` 的判断：从当前进程往上跳过 pwsh/powershell，找到所在终端的进程（WT、VS Code 的 ptyHost），在 `%LOCALAPPDATA%\matrix-minimal\` 用 `CreateNew` 建 `launch-<pid>-<启动时间 ticks>`，建成功的标签页播完整开场（几个标签页同时恢复时只有一个播）；新终端启动时顺手删掉已退出终端的标记。上面是 explorer（开始菜单打开的独立控制台窗口）或者查不到时，每次都播完整开场。只显示大字时按键**不吞**（用户可能已经开始打字）。PS7 用 `Process.Parent`（约 5 ms）；PS5 没有，用 Reflection.Emit 现做一个 `NtQueryInformationProcess` 的 P/Invoke（约 30 ms），WMI/CIM 要约 0.3 秒，`Add-Type` 会启动 C# 编译器，都不用。
 - **钩子会被别人包在外面（VS Code）**：VS Code 的 shell integration（`resources\app\out\vs\workbench\contrib\terminal\common\scripts\shellIntegration.ps1`）在 profile **之后**运行，把当时的 `prompt` 和 `PSConsoleHostReadLine` 存起来再包一层，里面用 `.Invoke()` 调原来的。旧版钩子发现"外面不是我"就重新包装，而且被包的函数存在同一个全局变量里，结果形成 我→VS Code→我（旧）→VS Code… 的死循环：动画播完后终端吃满一个核，打不了字（2026-10-18 修好）。现在：每个包装用 `GetNewClosure()` 各自保存自己包着的函数，不会成环；只有上一轮另一个钩子**没有被调用到**时才重新包装（`$MatrixPromptSeen` / `$MatrixReadLineSeen`；在 read-line 钩子里面画的提示符，比如开场重画、Ctrl+L，不算一轮，用 `$MatrixInReadLine` 区分）；`prompt` 包装调里层之前用 `Write-Error -ErrorAction Ignore` 把 `$?` 还原，VS Code 的成功/失败标记才对。用户的 profile 里 posh-theme 会在本主题之后重新 init oh-my-posh，所以 VS Code 里实际是 `prompt` = 我→VS Code→omp，`PSConsoleHostReadLine` = VS Code→我→PSReadLine。测法：写一个只 dot-source 上面那个 shellIntegration.ps1 的脚本，`wt -w mmtest nt pwsh.exe -NoLogo -NoExit -File <绝对路径>`（PS5 同理），注入按键执行命令；也可以用一个替身 `PSConsoleHostReadLine` 在后台控制台里循环跑 `prompt` + `PSConsoleHostReadLine`（不能重定向输出，否则钩子直接 return）。VS Code 终端里 `TERM_PROGRAM=vscode`，从 WT 启动的 VS Code 会继承 `WT_SESSION`，所以 `matrix-terminal.ps1` 两个都判断。
 - 用户的终端尺寸（2026-10-18 实测）：VS Code 80×30，WT 126×36。开场结尾的大字要放得下 80 列、不能太高。
 - **Windows Terminal**：settings.json 会热加载。着色器和背景图按配置（profile）生效，**不能按标签页设置**，也没有 VT 序列能改。设了背景图时，背景本身是透明的，着色器拿到的纹理是预乘 alpha（`matrix-rain.hlsl` 已按这个处理）。着色器不覆盖 padding 区域，所以 phosphor 的 VIGNETTE 默认为 0（否则边缘会出现接缝）。setup 只修改 name/source/commandline 匹配 `PowerShell|pwsh` 的配置，并跳过 Matrix Rain 的 GUID。
@@ -46,7 +46,7 @@
 - 打开一个单独的 WT 窗口：`wt -w mmrec --size 100,36 nt -p <默认的 PowerShell 配置 guid> -d <仓库> pwsh.exe -NoLogo`。大字比原来的一行多占 7 行，36 行正好让敲错命令后的整屏（大字 + pwd + status + diff + 报错）不滚动。用一个后台线程每 50 ms 调一次 `PrintWindow`（进程先设成 per-monitor DPI aware），另开 3 个线程编码 PNG；用 `WriteConsoleInput` 逐字"打字"（每键 55–130 ms）。脚本用 Windows PowerShell 5.1 跑（C# 里直接用 System.Drawing），文件要带 BOM。
 - **开场里按任何键都会跳过开场，而且这个键会被吞掉**：attach 到 shell 的控制台后用 `ReadConsoleOutputCharacter` 读第 10 行，以 `shulin` 开头说明开场（含解码）结束、提示符已经重画。
 - 录制窗口弹出来后被手动最小化过一次（GetWindowRect 变成 160×28，帧全废）：录制线程发现 `IsIconic` 就 `ShowWindow(SW_SHOWNOACTIVATE)` 恢复（不抢焦点）。被别的窗口挡住不影响 `PrintWindow`。
-- `rain` 打开的新标签页约 2 秒后也会开始播开场（Intro = always），GIF 要在那之前结束：量每帧第 2 行的亮绿像素，找新标签页里开场文字出现的时刻。
+- `rain` 打开的新标签页约 2 秒后也会开始播开场（录制时 Intro 还是 always），GIF 要在那之前结束：量每帧第 2 行的亮绿像素，找新标签页里开场文字出现的时刻。现在默认是 launch，重录时新标签页约 1 秒后会解码出 DESERT 大字，同样要在那之前结束。
 - 剪辑：裁掉标签栏和边框（终端区域 x=8、y=41、1116×920）；从第一行开场文字出现前几帧开始；相同的帧合并；光标闪烁（A、B、A，B 只在一个格子里不同）合并成一帧，磷光让光标的差异框有 17×31，阈值用宽 ≤24、高 ≤36（打一个字至少变两格，不会被误合并；失败闪烁也不会）；每次停顿最长 2.2 秒，大字那一帧特意给满 2.2 秒；最后一帧只停 80 ms，接着从头循环。然后用 ffmpeg 的 concat 列表带上每帧时长，两遍：`palettegen=reserve_transparent=0`，再 `paletteuse=dither=none:diff_mode=rectangle` 加 `-fps_mode vfr`。
 - PS7.4 以后，敲错命令会出现 `[General Feedback]` 提示（"最相似的命令是 matrix"），这是 PowerShell 自带的，录进去了。
 
@@ -74,7 +74,7 @@
 着色器只能按配置设置，所以 `rain` 用一个专门的 WT 配置 "Matrix Rain"（固定 GUID `{4d415452-4958-5241-494e-6d696e696d61}`，即 "MATRIXRAINminima"）：commandline 是 `pwsh.exe -NoLogo` 或 PS5 的完整路径，Matrix Minimal 配色，`matrix-rain.hlsl`，**不设背景图**，字体从 `profiles.defaults` 继承。
 
 - 第一次运行 `rain` 时，把这个配置**以文本方式**插到 `profiles.list` 末尾，用正则分词器数括号（`Get-ProfileList`，兼容注释、尾逗号、旧版 `"profiles": [...]`），缩进照抄第一个配置，保留 BOM 和换行符。然后运行 `wt -w 0 nt -p <guid> -d <当前目录，; 转义成 \;> <当前 shell> -NoLogo`。
-- 在雨的标签页里（`$env:WT_PROFILE_ID` 等于这个 GUID）运行 `rain` 只给提示。`rain off` 也只给提示，另外兼容旧版（ddfb813）：只把含有 `matrix-rain-clear.png` 且不是 Matrix Rain 的配置换回来。
+- 在雨的标签页里（`$env:WT_PROFILE_ID` 等于这个 GUID）运行 `rain` 会再开一个下雨的标签页（2026-10-18 用户要求，以前只给提示）。`rain off` 只给提示，另外兼容旧版（ddfb813）：只把含有 `matrix-rain-clear.png` 且不是 Matrix Rain 的配置换回来。
 - setup 跳过这个 GUID；uninstall 删除这个配置，而且在 `$inUse` 判断**之前**删（它也用 Matrix Minimal 配色）。
 - 实测（2026-10-16，这台机子）：
   - 插入配置后立即 `wt -p <guid>`，WT 会**静默**换成别的配置打开（按 commandline 匹配到了 Windows PowerShell）；等 100 ms 就够了，代码里等 1 秒。

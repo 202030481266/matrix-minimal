@@ -10,10 +10,11 @@
 $global:MatrixPathStyle   = 'bar'      # pwd 输出样式：'bar' 深绿高亮条 | 'plain' 无底色
 $global:MatrixMinimalHome = $PSScriptRoot
 # 动效（可以在 $PROFILE 里加载本文件之前先定义 $MatrixFx 覆盖）：
-#   Intro  新窗口开场 'always' 每个新窗口（默认）| 'daily' 每天第一次 | 'off'，按任意键跳过
+#   Intro  开场 'launch' 每次启动终端（Windows Terminal、VS Code）的第一个标签页（默认）| 'daily' 每天第一次
+#          | 'always' 每个新标签页 | 'off'。launch 和 daily 下，没轮到的新标签页只显示结尾的大字。按任意键跳过
 #   Decode 单独输入 pwd 时路径从片假名逐字解码
 #   Glitch 命令失败后新提示符闪一下
-if ($null -eq $global:MatrixFx) { $global:MatrixFx = @{ Intro = 'always'; Decode = $true; Glitch = $true } }
+if ($null -eq $global:MatrixFx) { $global:MatrixFx = @{ Intro = 'launch'; Decode = $true; Glitch = $true } }
 
 # 1. Prompt -------------------------------------------------------------------
 & {
@@ -230,10 +231,11 @@ function global:Test-MatrixMinimal {
         & $add info 'intro' "theme 当前是 $global:PoshThemeCurrent：开场和故障闪烁只在 matrix-minimal 下出现"
     } else {
         $mode = "$($global:MatrixFx.Intro)"
-        $todayMark = Join-Path $env:LOCALAPPDATA ('matrix-minimal\intro-' + (Get-Date -Format 'yyyyMMdd'))
+        $todayMark = Join-Path $global:MatrixIntroMarks ('intro-' + (Get-Date -Format 'yyyyMMdd'))
         $detail = switch ($mode) {
-            'always' { '每个新窗口都播' }
-            'daily'  { if (Test-Path $todayMark) { '每天一次，今天已经播过' } else { '每天一次，今天还没播' } }
+            'launch' { '每次启动终端播一次，之后新开的标签页只显示结尾的大字' }
+            'always' { '每个新标签页都播' }
+            'daily'  { if (Test-Path $todayMark) { '每天一次，今天已经播过（新标签页只显示结尾的大字）' } else { '每天一次，今天还没播' } }
             default  { "已关闭（`$MatrixFx.Intro = '$mode'）" }
         }
         & $add ok 'intro' "$detail；随时运行 Show-MatrixIntro 重播"
@@ -365,10 +367,11 @@ function global:Start-MatrixSession([switch]$Redraw) {
         $global:PoshThemeInteractiveApps += 'matrix'
     }
     if ([Console]::IsOutputRedirected -or -not $Host.UI.SupportsVirtualTerminal) { return }
-    if (Test-MatrixIntroDue) {
-        try { Show-MatrixIntro -Redraw:$Redraw }
+    $kind = Get-MatrixIntroKind
+    if ($kind) {
+        try { Show-MatrixIntro -Redraw:$Redraw -TitleOnly:($kind -eq 'title') }
         catch {
-            # 'daily': give today's turn back, so the next window tries again
+            # 'launch' / 'daily': give the turn back, so the next tab tries again
             if ($global:MatrixIntroMark) { Remove-Item $global:MatrixIntroMark -ErrorAction SilentlyContinue }
             throw
         }
@@ -414,25 +417,62 @@ Register-MatrixReadLine
 Register-MatrixPrompt
 
 # --- wake-up intro ---
-function global:Test-MatrixIntroDue {
+# Who has had the intro: an empty file per day ('daily') or per terminal ('launch')
+$global:MatrixIntroMarks = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'matrix-minimal'
+
+# What a new tab shows: 'full' (the whole intro), 'title' (only its last words) or '' (nothing).
+function global:Get-MatrixIntroKind {
     $global:MatrixIntroMark = $null
-    if ($global:PoshThemeCurrent -and $global:PoshThemeCurrent -ne 'matrix-minimal') { return $false }
-    switch ("$($global:MatrixFx.Intro)") {
-        'always' { return $true }
-        'daily' {
-            # several tabs restored at once: only the one that creates today's mark plays
-            $dir = Join-Path $env:LOCALAPPDATA 'matrix-minimal'
-            $mark = Join-Path $dir ('intro-' + (Get-Date -Format 'yyyyMMdd'))
-            try {
-                [void][IO.Directory]::CreateDirectory($dir)
-                [IO.File]::Open($mark, [IO.FileMode]::CreateNew).Dispose()
-            } catch { return $false }
-            Get-ChildItem $dir -Filter 'intro-*' | Where-Object { $_.FullName -ne $mark } | Remove-Item -ErrorAction SilentlyContinue
-            $global:MatrixIntroMark = $mark
-            return $true
+    if ($global:PoshThemeCurrent -and $global:PoshThemeCurrent -ne 'matrix-minimal') { return '' }
+    $mode = "$($global:MatrixFx.Intro)"
+    if ($mode -eq 'always') { return 'full' }
+    if ($mode -notin 'launch', 'daily') { return '' }
+    $name = if ($mode -eq 'daily') { 'intro-' + (Get-Date -Format 'yyyyMMdd') } else { try { Get-MatrixTerminalMark } catch { $null } }
+    if (-not $name) { return 'full' }                               # a console window of its own (or no way to tell)
+    # several tabs opened at once (restored by the terminal): only the one that creates the mark plays
+    $dir = $global:MatrixIntroMarks
+    $mark = Join-Path $dir $name
+    try {
+        [void][IO.Directory]::CreateDirectory($dir)
+        [IO.File]::Open($mark, [IO.FileMode]::CreateNew).Dispose()
+    } catch { return 'title' }
+    # drop the marks of other days, and of terminals no longer running
+    foreach ($f in Get-ChildItem $dir -Filter ($name.Split('-')[0] + '-*')) {
+        if ($f.Name -eq $name) { continue }
+        if ($f.Name -match '^launch-(\d+)-(\d+)$') {
+            $p = try { [Diagnostics.Process]::GetProcessById([int]$Matches[1]) } catch { $null }
+            if ($p -and $(try { "$($p.StartTime.Ticks)" -eq $Matches[2] } catch { $true })) { continue }
+        }
+        Remove-Item $f.FullName -ErrorAction SilentlyContinue
+    }
+    $global:MatrixIntroMark = $mark
+    'full'
+}
+
+# "launch-<id>-<start time>" of the process this tab runs in: Windows Terminal, VS Code, ... (past
+# any PowerShell started inside the tab). Nothing for a console window started from Explorer or
+# the Start menu: that window is a terminal of its own.
+function global:Get-MatrixTerminalMark {
+    $p = [Diagnostics.Process]::GetCurrentProcess()
+    $ntdll = $null
+    for ($i = 0; $p -and $i -lt 8 -and $p.ProcessName -in 'pwsh', 'powershell'; $i++) {
+        if ($PSVersionTable.PSEdition -eq 'Core') { $p = $p.Parent; continue }
+        # Windows PowerShell has no .Parent: ask ntdll, through a P/Invoke made at run time
+        # (Add-Type would start the C# compiler, WMI takes ~0.3 s)
+        if (-not $ntdll) {
+            $asm = [Reflection.Emit.AssemblyBuilder]::DefineDynamicAssembly((New-Object Reflection.AssemblyName 'MatrixNtdll'), 'Run')
+            $type = $asm.DefineDynamicModule('MatrixNtdll').DefineType('MatrixNtdll', 'Public, Class')
+            [void]$type.DefinePInvokeMethod('NtQueryInformationProcess', 'ntdll.dll', 'Public, Static, PinvokeImpl', 'Standard',
+                [int], [Type[]]@([IntPtr], [int], [IntPtr[]], [int], [IntPtr]), 'Winapi', 'Auto')
+            $ntdll = $type.CreateType()
+        }
+        $info = New-Object IntPtr[] 6                               # PROCESS_BASIC_INFORMATION; [5] is the parent's id
+        $p = if ($ntdll::NtQueryInformationProcess($p.Handle, 0, $info, 6 * [IntPtr]::Size, [IntPtr]::Zero) -eq 0) {
+            try { [Diagnostics.Process]::GetProcessById([int]$info[5]) } catch { $null }
         }
     }
-    $false
+    if (-not $p -or $p.ProcessName -in 'pwsh', 'powershell', 'explorer') { return $null }
+    "launch-$($p.Id)-$(try { $p.StartTime.Ticks } catch { 0 })"
 }
 
 # The name in the intro is the one in the prompt: "var.Name" in matrix-minimal.omp.json.
@@ -508,9 +548,9 @@ $global:MatrixDesert = @(
 )
 
 # Draws them at the top of the (cleared) screen, decoding from katakana left to right like
-# pwd (~0.3 s; a key shows them at once), or at once with -Instant. One plain line when the
-# window is too small for the big letters.
-function global:Show-MatrixWelcome([switch]$Instant) {
+# pwd (~0.3 s; a key shows them at once, and is swallowed unless -KeepKey), or at once with
+# -Instant. One plain line when the window is too small for the big letters.
+function global:Show-MatrixWelcome([switch]$Instant, [switch]$KeepKey) {
     $e = [char]27
     $out = $Host.UI                 # Unicode-safe (Console.Out would turn katakana into ? on some code pages)
     $big = $global:MatrixDesert
@@ -550,20 +590,21 @@ function global:Show-MatrixWelcome([switch]$Instant) {
         }
         $out.Write($sb.ToString())
         if ($f -ge 14) { break }
-        if (Wait-MatrixKey 20) { [void][Console]::ReadKey($true); $f = 14 } else { $f++ }
+        if (Wait-MatrixKey 20) { if (-not $KeepKey) { [void][Console]::ReadKey($true) }; $f = 14 } else { $f++ }
     }
     $out.Write("`r`n")
 }
 
 # Run it by hand to show it off; -Redraw (used at startup) also draws the prompt again,
-# because the intro clears the prompt that was already on screen.
+# because the intro clears the prompt that was already on screen. -TitleOnly: only the last
+# words (new tabs that do not get the whole intro); a key typed meanwhile is input, not "skip".
 function global:Show-MatrixIntro {
-    param([switch]$Redraw)
+    param([switch]$Redraw, [switch]$TitleOnly)
     $e = [char]27
     $out = $Host.UI                 # Unicode-safe (Console.Out would turn katakana into ? on some code pages)
     $green = "$e[38;2;0;255;65m"
     $block = [char]0x2588
-    $lines = "Wake up, $(Get-MatrixName)...", 'The Matrix has you...', 'Follow the white rabbit.'
+    $lines = if ($TitleOnly) { @() } else { "Wake up, $(Get-MatrixName)...", 'The Matrix has you...', 'Follow the white rabbit.' }
     $ctrlC = [Console]::TreatControlCAsInput
     $skipped = $false
     try {
@@ -587,11 +628,11 @@ function global:Show-MatrixIntro {
             }
             if ($skipped) { break }
         }
-        if (-not $skipped) { $skipped = Show-MatrixRain 800 }
+        if (-not ($skipped -or $TitleOnly)) { $skipped = Show-MatrixRain 800 }
     } finally {
         if ($skipped -and [Console]::KeyAvailable) { [void][Console]::ReadKey($true) }   # the key only meant "skip"
         $out.Write("$e[0m$e[2J$e[H")
-        try { Show-MatrixWelcome -Instant:$skipped } catch { $global:MatrixHookError = $_ }   # skipped: at once
+        try { Show-MatrixWelcome -Instant:$skipped -KeepKey:$TitleOnly } catch { $global:MatrixHookError = $_ }   # skipped: at once
         [Console]::TreatControlCAsInput = $ctrlC
         if ($Redraw) { $out.Write(-join (prompt)) }  # the prompt again, on the cleared screen
         $out.Write("$e[?25h")

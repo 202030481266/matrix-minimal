@@ -102,9 +102,10 @@ function global:$app {
 #    rain       opens a new tab with the moving digital rain (matrix-rain.hlsl). Windows Terminal
 #               sets shaders per profile, never per tab, so the rain has a profile of its own,
 #               "Matrix Rain", added to settings.json the first time; other tabs keep the still
-#               rain. That tab redraws all the time, which keeps the GPU busy even while another
-#               tab is in front or the window is minimised (measured): close it when done.
-#    rain off   tells you to close that tab; it also undoes "rain on" of earlier versions, which
+#               rain; run in a raining tab, it opens one more. Such a tab redraws all the time,
+#               which keeps the GPU busy even while another tab is in front or the window is
+#               minimised (measured): close it when done.
+#    rain off   tells you to close those tabs; it also undoes "rain on" of earlier versions, which
 #               made every PowerShell profile rain
 #    settings.json is edited as text, so comments and formatting stay as they are; the terminal
 #    picks the change up by itself.
@@ -113,7 +114,6 @@ function global:rain {
     if ($State -and $State -notin 'on', 'off') { Write-Host '用法：rain（新开一个下雨的标签页）| rain off'; return }
     $guid = '{4d415452-4958-5241-494e-6d696e696d61}'   # "MATRIXRAINminima"
     $here = $env:WT_PROFILE_ID -eq $guid
-    if ($State -ne 'off' -and $here) { Write-Host '这个标签页就在下雨；关掉它，雨就停了' -ForegroundColor Green; return }
 
     # The entries of profiles.list, found on the text: settings.json may hold comments, which
     # Windows PowerShell's ConvertFrom-Json rejects. Returns the index of the list's "[" and "]"
@@ -180,8 +180,8 @@ function global:rain {
             if ($text -ne $f.Text) { Save-Settings $f $text; $undone = $true }
         }
         if ($undone) { Write-Host '代码雨：关。PowerShell 标签页换回静态雨幕和磷光效果' -ForegroundColor DarkGreen }
-        if ($here) { Write-Host '这个标签页就是下雨的那个，关掉它，雨就停了' -ForegroundColor DarkGreen }
-        elseif (-not $undone) { Write-Host '代码雨只在 "Matrix Rain" 标签页里下，关掉那个标签页就停了' -ForegroundColor DarkGreen }
+        if ($here) { Write-Host '这个标签页就在下雨，把它和别的 "Matrix Rain" 标签页都关掉，雨就停了' -ForegroundColor DarkGreen }
+        elseif (-not $undone) { Write-Host '代码雨只在 "Matrix Rain" 标签页里下，关掉那些标签页就停了' -ForegroundColor DarkGreen }
         return
     }
 
@@ -237,5 +237,6 @@ function global:rain {
            else { Join-Path $PSHOME 'pwsh.exe' }
     $dir = (Get-Location -PSProvider FileSystem).ProviderPath.Replace(';', '\;')
     & $wt -w 0 nt -p $guid -d $dir $exe -NoLogo
-    Write-Host '代码雨在新标签页 "Matrix Rain" 里下，别的标签页不受影响。它会一直占用显卡（切到别的标签页也不会停），看够了关掉那个标签页就行' -ForegroundColor Green
+    if ($here) { Write-Host '又开了一个下雨的标签页。每个都会一直占用显卡，看够了都关掉' -ForegroundColor Green }
+    else { Write-Host '代码雨在新标签页 "Matrix Rain" 里下，别的标签页不受影响。它会一直占用显卡（切到别的标签页也不会停），看够了关掉那个标签页就行' -ForegroundColor Green }
 }

@@ -20,7 +20,7 @@
 
 - 文字默认带一层淡淡的荧光和细扫描线，参考了老式磷光显示器的风格。
 
-- 动画开场：默认每次新开一个标签页都会执行动画，屏幕上逐字打出 "Wake up, your name..."，接着下一阵代码雨，最后 "Welcome to the desert of the real" 从片假名里逐列解码出来，其中 DESERT 是带阴影的大字（窗口太窄时只显示一行小字）。按任意键可以跳过，运行 `Show-MatrixIntro` 可以重播，嫌烦也可以改成每天只放一次。
+- 动画开场：每次启动 Windows Terminal，第一个标签页会执行动画，屏幕上逐字打出 "Wake up, your name..."，接着下一阵代码雨，最后 "Welcome to the desert of the real" 从片假名里逐列解码出来，其中 DESERT 是带阴影的大字（窗口太窄时只显示一行小字）。之后再新开的标签页只解码出这几行大字。按任意键可以跳过，运行 `Show-MatrixIntro` 可以重播，也可以改成每个标签页都放、每天只放一次或者关掉。
 
 - `pwd` 命令特效：输出的路径会先变成一串乱跳的片假名，再逐字解码出来。
 
@@ -28,7 +28,7 @@
 
 - `matrix` 命令特效：墨菲斯会让你选药丸，红色药丸带你进入全屏代码雨，按任意键醒来；蓝色药丸，故事就到此结束。
 
-- 动态代码雨请运行 `rain`，这会新开一个 "Matrix Rain" 标签页，该标签页的背景将会使用动态的代码雨。
+- 动态代码雨请运行 `rain`，这会新开一个 "Matrix Rain" 标签页，该标签页的背景将会使用动态的代码雨。在下雨的标签页里再运行 `rain`，会再开一个。
 
 ![截图](docs/screenshot.png)
 
@@ -62,7 +62,7 @@ irm https://raw.githubusercontent.com/202030481266/matrix-minimal/main/install.p
 | 想调整的          | 做法                                                                                                                                                  |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 名字            | 修改 `~\.config\omp\matrix-minimal.omp.json` 里的 `var.Name`                                                                                            |
-| 开场频率，或者关掉某个动效 | 在 `$PROFILE` 里加载主题的两行之前写上 `$MatrixFx = @{ Intro = 'daily'; Decode = $true; Glitch = $true }`。`Intro` 可以是 `always`（默认，每个新标签页都放）、`daily`（每天一次）或 `off` |
+| 开场频率，或者关掉某个动效 | 在 `$PROFILE` 里加载主题的两行之前写上 `$MatrixFx = @{ Intro = 'daily'; Decode = $true; Glitch = $true }`。`Intro` 可以是 `launch`（默认，每次启动终端放一次，之后的新标签页只显示结尾的大字）、`always`（每个新标签页都放）、`daily`（每天一次，其余标签页只显示大字）或 `off` |
 | 背景雨的疏密、亮度和排布  | 修改 `~\.config\omp\matrix-rain-bg.ps1` 开头 "Tweak me" 部分的参数，运行 `pwsh -File ~\.config\omp\matrix-rain-bg.ps1 -Seed 7` 重新生成，再新开一个标签页                    |
 | 磷光的强弱         | 修改 `~\.config\omp\matrix-phosphor.hlsl` 开头的参数，保存后立即生效                                                                                               |
 | 输出的配色         | 在 Windows Terminal 的设置里修改 "Matrix Minimal" 配色，重新安装时会被覆盖。PowerShell 7 自己的输出颜色在 `$PSStyle` 里，在 `$PROFILE` 中加载主题之前设置的值会保留                              |

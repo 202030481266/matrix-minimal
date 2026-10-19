@@ -418,6 +418,6 @@ if ($SkipTerminal) {
 Write-Host ''
 Write-Host '  完成。Welcome to the desert of the real.' -ForegroundColor Green
 Write-Host '  - 关掉所有 PowerShell 窗口，重新打开（新 PATH 和 profile 才会生效）'
-Write-Host '  - 每开一个标签页都会播开场；随时运行 Show-MatrixIntro 重播'
+Write-Host '  - 每次启动终端时播一次开场，之后新开的标签页只显示结尾的大字；随时运行 Show-MatrixIntro 重播'
 Write-Host "  - 卸载：powershell -ExecutionPolicy Bypass -File `"$(Join-Path $target 'uninstall.ps1')`""
 Write-Host ''
