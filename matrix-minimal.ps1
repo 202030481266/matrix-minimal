@@ -40,14 +40,22 @@ function global:Register-MatrixWithPoshTheme {
     if ($global:PoshThemes -notcontains 'matrix-minimal') { $global:PoshThemes += 'matrix-minimal' }
     $true
 }
+# The prompt shows the active Python environment itself (the "python" segment). oh-my-posh
+# already silences venv's own "(name) "; CONDA_CHANGEPS1 silences conda's, which is written
+# ahead of the prompt when conda's hook runs after this file (the "Anaconda PowerShell Prompt"
+# shortcut does). Only while this prompt is the one in use: other themes may not show it.
 if (Register-MatrixWithPoshTheme) {
     $saved = "$(Get-Content $global:PoshThemeFile -ErrorAction SilentlyContinue)".Trim()
-    if ($saved -eq 'matrix-minimal' -and $global:PoshThemeCurrent -ne 'matrix-minimal') {
-        Initialize-PoshTheme 'matrix-minimal'
-        $global:PoshThemeCurrent = 'matrix-minimal'
+    if ($saved -eq 'matrix-minimal') {
+        if ($global:PoshThemeCurrent -ne 'matrix-minimal') {
+            Initialize-PoshTheme 'matrix-minimal'
+            $global:PoshThemeCurrent = 'matrix-minimal'
+        }
+        $env:CONDA_CHANGEPS1 = 'false'
     }
 } elseif (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     oh-my-posh init pwsh --config (Join-Path $PSScriptRoot 'matrix-minimal.omp.json') | Invoke-Expression
+    $env:CONDA_CHANGEPS1 = 'false'
 } else {
     Write-Warning 'Matrix Minimal: 找不到 oh-my-posh 命令，提示符主题没有加载。'
 }

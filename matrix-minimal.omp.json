@@ -10,6 +10,7 @@
     "rain": "#00FF41",
     "matrix": "#008F11",
     "ghost": "#3D8A50",
+    "mint": "#7DFFB8",
     "glitch": "#FF3E5B"
   },
   "blocks": [
@@ -22,6 +23,18 @@
           "style": "plain",
           "foreground": "p:matrix",
           "template": "{{ if .Var.Name }}{{ .Var.Name }}{{ else }}{{ .UserName }}{{ end }}{{ if .SSHSession }}@{{ .HostName }}{{ end }} "
+        },
+        {
+          "type": "python",
+          "style": "plain",
+          "foreground": "p:ghost",
+          "template": "{{ if .Venv }}(<p:mint>{{ regexReplaceAll \"-[A-Za-z0-9_-]{8}-py[0-9.]+$\" .Venv \"\" }}</>) {{ end }}",
+          "options": {
+            "display_mode": "environment",
+            "fetch_version": false,
+            "home_enabled": true,
+            "default_venv_names": [".venv", "venv", ".env", "env", ".conda", "conda", "virtualenv"]
+          }
         },
         {
           "type": "git",

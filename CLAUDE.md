@@ -82,6 +82,15 @@
   - Store 版 pwsh 的 `$PSHOME` 在 WindowsApps 下，所以新标签页改用 `pwsh.exe`（走应用执行别名）启动。
   - 负载（RTX 4090，窗口 2560×1392；WT 进程，CPU 按一个核算）：只有静态标签页时 GPU 0.2%、CPU 0.3%；雨的标签页在前台时 GPU 0.7%、CPU 2.2%；**切到别的标签页**时 GPU 0.4%、CPU 2.5%；**最小化**时 GPU 0.6%、CPU 3.4%；关掉标签页后回落。所以切走或最小化都不会停，只能关掉标签页。提示语和 README 里已经这么写了。
 
+## 提示符里的 Python 环境（2026-10-21，用户在四个候选里选了 A）
+
+样子：`shulin (zion) main* >`，括号 `p:ghost`、环境名 `p:mint`（`#7DFFB8`），放在名字和分支之间。落选的有：放在行首、放在右侧、`py:zion` 文字标签。只做 Python 环境：调研了 Starship、Powerlevel10k、Pure 和 oh-my-posh，四家唯一都默认开启的就是 conda 和 venv。语言版本要启动进程去查，云上下文不是"被激活的环境"，所以都不做。
+
+- 用的是 oh-my-posh 自带的 `python` 段：`display_mode: environment`；`fetch_version: false`（不启动 python，约 2 ms）；**`home_enabled: true`**（默认是 false，在家目录下环境名会被隐藏）；`default_venv_names` 扩展到 `.venv venv .env env .conda conda virtualenv`。名字是通用名时显示上一级目录名，这条规则对 `CONDA_DEFAULT_ENV` 也生效。conda 用 `-p` 建的环境，`CONDA_DEFAULT_ENV` 是整条路径（envs 目录里的环境才是名字），所以 VS Code 建的 `myproj\.conda` 会显示成 `myproj`。模板里用 `regexReplaceAll` 去掉 poetry 环境名末尾的 `-<8位哈希>-py3.x`。同时有 venv 和 conda 时，优先显示 venv。base 照常显示（和 conda 自己的习惯一致）。
+- 重复前缀：oh-my-posh 的 init 会设 `VIRTUAL_ENV_DISABLE_PROMPT=1`（这时 CPython 的 Activate.ps1 不设 `VIRTUAL_ENV_PROMPT`，所以 `--prompt 别名` 不会显示，显示的是目录名；uv 和 virtualenv 不管这个变量都会设）。conda 的 hook 如果在主题**之后**加载（比如"Anaconda PowerShell Prompt"快捷方式），会把 `prompt` 改名成 `CondaPromptBackup` 再包一层，用 `Write-Host` 输出 `CONDA_PROMPT_MODIFIER`，结果出现 `(base) shulin (base)`。所以 `matrix-minimal.ps1` 在本主题的提示符生效时设 `$env:CONDA_CHANGEPS1 = 'false'`：`conda-hook.ps1` 里写死了 `ChangePs1 = $True`，但这样设之后 modifier 是空串，就不会输出了。`conda init` 写在 `profile.ps1`（CurrentUserAllHosts）里，比主题先加载，它的包装会被 oh-my-posh 换掉，本来就不会重复。
+- conda 24.9.2 配 PS 7.3+ 时，激活 base 之后再 `conda activate` 会报错（空字符串被当作参数传给 conda），不加载主题也一样。测试里用 `$PSNativeCommandArgumentPassing = 'Legacy'` 绕过。
+- 测法：`-NoProfile` 下 dot-source 仓库里的 `matrix-minimal.ps1`，运行真实的 `activate.ps1` 或 conda hook，再用 `prompt 6>&1` 取输出（外层包装用 `Write-Host` 写的内容也能取到）。也可以 `oh-my-posh print primary --config ... --pwd ...` 配合环境变量测，记得 `env -u POSH_SESSION_ID`。
+
 ## 其他未完成的事
 
 - 朋友的机子当初"没有开场动画"的确切原因没有复现出来，修复针对的是可能的原因。如果还有问题，让他重新运行安装并发 `Test-MatrixMinimal` 的输出。
