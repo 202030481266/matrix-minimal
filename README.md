@@ -68,7 +68,7 @@ irm https://raw.githubusercontent.com/202030481266/matrix-minimal/main/install.p
 | 背景雨的疏密、亮度和排布  | 修改 `~\.config\omp\matrix-rain-bg.ps1` 开头 "Tweak me" 部分的参数，运行 `pwsh -File ~\.config\omp\matrix-rain-bg.ps1 -Seed 7` 重新生成，再新开一个标签页                    |
 | 磷光的强弱         | 修改 `~\.config\omp\matrix-phosphor.hlsl` 开头的参数，保存后立即生效                                                                                               |
 | 输出的配色         | 在 Windows Terminal 的设置里修改 "Matrix Minimal" 配色，重新安装时会被覆盖。PowerShell 7 自己的输出颜色在 `$PSStyle` 里，在 `$PROFILE` 中加载主题之前设置的值会保留                              |
-| 保留原生配色的程序     | 在加载主题之前设置 `$MatrixNativeApps = 'claude', 'codex', 'nvim'`                                                                                           |
+| 保留原生配色的程序     | 这些程序运行时，标签页换回 Windows Terminal 的默认配色（光标也换回白色），退出后恢复。默认是 claude、codex、gemini、opencode、aider、copilot、nvim 和 vim；要增减的话，在加载主题之前设置，比如 `$MatrixNativeApps = 'claude', 'codex', 'nvim', 'lazygit'` |
 
 ## 卸载
 

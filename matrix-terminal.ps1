@@ -43,13 +43,15 @@ if ($PSStyle) {
     }
 }
 
-# 2. Native colours inside AI command-line apps ------------------------------
+# 2. Native colours inside AI command-line apps and vim ----------------------
 #    While one of these runs, the tab switches to Windows Terminal's default palette
 #    (Campbell) so the app shows its own theme. When it exits, the tab goes back to
-#    the profile's scheme. Add more names in $PROFILE before this file is loaded, e.g.
-#      $MatrixNativeApps = 'claude', 'codex', 'nvim'
+#    the profile's scheme. nvim is in the list for its cursor: it leaves the cursor
+#    colour to the terminal here, which would keep the scheme's green.
+#    To change the list, set it in $PROFILE before this file is loaded, e.g.
+#      $MatrixNativeApps = 'claude', 'codex', 'nvim', 'lazygit'
 if ($null -eq $global:MatrixNativeApps) {
-    $global:MatrixNativeApps = @('claude', 'codex', 'gemini', 'opencode', 'aider', 'copilot')
+    $global:MatrixNativeApps = @('claude', 'codex', 'gemini', 'opencode', 'aider', 'copilot', 'nvim', 'vim')
 }
 if ($null -eq $global:MatrixNativePalette) {
     # 16 ANSI colours (black red green yellow blue purple cyan white, then the bright ones),
@@ -75,7 +77,8 @@ function global:Set-MatrixNativeColors([bool]$On) {
     [Console]::Out.Flush()
 }
 
-# One wrapper function per installed app; the real program is looked up on every call.
+# One wrapper function per installed app; the real program is looked up on every call,
+# and gets piped input too ('text' | nvim -).
 # Installed = found on PATH. (Get-Command would also search every module for missing names: slow.)
 & {
     $dirs = foreach ($d in $env:Path.Split(';')) { $d = $d.Trim().Trim('"'); if ($d) { $d } }
@@ -92,7 +95,9 @@ function global:Set-MatrixNativeColors([bool]$On) {
 function global:$app {
     `$target = Get-Command '$app' -CommandType Application, ExternalScript -ErrorAction Stop | Select-Object -First 1
     Set-MatrixNativeColors `$true
-    try { & `$target @args } finally { Set-MatrixNativeColors `$false }
+    try {
+        if (`$MyInvocation.ExpectingInput) { `$input | & `$target @args } else { & `$target @args }
+    } finally { Set-MatrixNativeColors `$false }
 }
 "@))
     }

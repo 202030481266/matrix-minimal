@@ -11,7 +11,7 @@
 | `uninstall.ps1` | 按 state 文件恢复原样 |
 | `matrix-minimal.omp.json` | Oh My Posh 配置（schema v4，仓库里 `var.Name` 为空，安装时填入） |
 | `matrix-minimal.ps1` | 提示符初始化，以及所有动效：开场、pwd 解码、失败闪烁、`matrix` 彩蛋；还有自检 `Test-MatrixMinimal` |
-| `matrix-terminal.ps1` | 只在 Windows Terminal 里生效：PowerShell 自己的输出颜色（PS7 用 `$PSStyle`，PS5 用 `$Host.PrivateData`，只替换默认值）、claude/codex 等程序运行时恢复原生配色（OSC 4/10/11/12，结束后用 104/110/111/112 复位），以及 `rain` 命令（新开一个用 "Matrix Rain" 配置的标签页，见下文） |
+| `matrix-terminal.ps1` | 只在 Windows Terminal 里生效：PowerShell 自己的输出颜色（PS7 用 `$PSStyle`，PS5 用 `$Host.PrivateData`，只替换默认值）、claude/codex/nvim 等程序运行时恢复原生配色（OSC 4/10/11/12，结束后用 104/110/111/112 复位，见下文"原生配色的包装函数"），以及 `rain` 命令（新开一个用 "Matrix Rain" 配置的标签页，见下文） |
 | `matrix-phosphor.hlsl` | 默认的像素着色器：文字微光 + 扫描线。**不用 `Time`**，所以只在画面变化时运行 |
 | `matrix-rain.hlsl` | 会动的代码雨（用 `Time`，WT 会以 60fps 持续重绘），只用在 "Matrix Rain" 配置上 |
 | `matrix-rain-bg.ps1` | 生成静态雨幕背景图 `matrix-rain-bg.png`，按屏幕尺寸生成 |
@@ -37,7 +37,8 @@
 - **钩子会被别人包在外面（VS Code）**：VS Code 的 shell integration（`resources\app\out\vs\workbench\contrib\terminal\common\scripts\shellIntegration.ps1`）在 profile **之后**运行，把当时的 `prompt` 和 `PSConsoleHostReadLine` 存起来再包一层，里面用 `.Invoke()` 调原来的。旧版钩子发现"外面不是我"就重新包装，而且被包的函数存在同一个全局变量里，结果形成 我→VS Code→我（旧）→VS Code… 的死循环：动画播完后终端吃满一个核，打不了字（2026-10-18 修好）。现在：每个包装用 `GetNewClosure()` 各自保存自己包着的函数，不会成环；只有上一轮另一个钩子**没有被调用到**时才重新包装（`$MatrixPromptSeen` / `$MatrixReadLineSeen`；在 read-line 钩子里面画的提示符，比如开场重画、Ctrl+L，不算一轮，用 `$MatrixInReadLine` 区分）；`prompt` 包装调里层之前用 `Write-Error -ErrorAction Ignore` 把 `$?` 还原，VS Code 的成功/失败标记才对。用户的 profile 里 posh-theme 会在本主题之后重新 init oh-my-posh，所以 VS Code 里实际是 `prompt` = 我→VS Code→omp，`PSConsoleHostReadLine` = VS Code→我→PSReadLine。测法：写一个只 dot-source 上面那个 shellIntegration.ps1 的脚本，`wt -w mmtest nt pwsh.exe -NoLogo -NoExit -File <绝对路径>`（PS5 同理），注入按键执行命令；也可以用一个替身 `PSConsoleHostReadLine` 在后台控制台里循环跑 `prompt` + `PSConsoleHostReadLine`（不能重定向输出，否则钩子直接 return）。VS Code 终端里 `TERM_PROGRAM=vscode`，从 WT 启动的 VS Code 会继承 `WT_SESSION`，所以 `matrix-terminal.ps1` 两个都判断。
 - 用户的终端尺寸（2026-10-18 实测）：VS Code 80×30，WT 126×36。开场结尾的大字要放得下 80 列、不能太高。
 - **Windows Terminal**：settings.json 会热加载。着色器和背景图按配置（profile）生效，**不能按标签页设置**，也没有 VT 序列能改。设了背景图时，背景本身是透明的，着色器拿到的纹理是预乘 alpha（`matrix-rain.hlsl` 已按这个处理）。着色器不覆盖 padding 区域，所以 phosphor 的 VIGNETTE 默认为 0（否则边缘会出现接缝）。setup 只修改 name/source/commandline 匹配 `PowerShell|pwsh` 的配置，并跳过 Matrix Rain 的 GUID。
-- 端到端测试：用 `wt -w mmtest nt -p <guid>` 开一个单独的窗口，别动用户正在用的窗口。标签页里 shell 的父进程是 WindowsTerminal.exe，据此找到 PID，`AttachConsole` + `WriteConsoleInput` 注入按键（`-` 键是 VK 0xBD，不是 0x2D；开场动画会吞掉第一个键，先确认 shell 已经能执行命令），用 `PrintWindow(PW_RENDERFULLCONTENT)` 截图对比。GPU 用 `Get-Counter '\GPU Engine(pid_<WT pid>_*)\Utilization Percentage'`（这台机子的计数器名是英文）。`*>` 重定向在 PS5 写 UTF-16、在 PS7 写 UTF-8，用 `[IO.File]::ReadAllText` 读。**判断颜色要对截图做像素采样**，看缩略图会看走眼（曾经把 `#00FF41` 看成淡色）。预览配色可以在标签页里用 OSC 4/10 临时换调色板（结果是准的），也可以把配色写进 `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\<名字>\*.json`，然后用 `wt nt --colorScheme <名字>` 打开。管道会让 git 关掉颜色，要加 `-c color.ui=always`。`-File` 必须传绝对路径。不要调用 `python3`（Windows 应用商店的占位程序会卡住）。
+- **原生配色的包装函数**（`$MatrixNativeApps`，2026-10-23 加了 nvim、vim）：每个装了的程序对应一个同名的全局函数，先切换配色再调用真正的程序。nvim 在 Windows 上没设 `TERM` 时把终端认成内置的 `vtpcon`，不发 OSC 12，所以颜色方案里的 `Cursor` 颜色不生效（用户的 gruber-darker 是黄色），光标就是本配色的绿色 `cursorColor`；包装之后是 Campbell 的白色。以前的包装不转发管道输入，`'x' | nvim -` 会一直卡着等输入（`... | claude -p` 也一样），现在 `$MyInvocation.ExpectingInput` 时用 `$input | & $target @args`。函数本身还有几个限制，没处理：`--` 会被 PowerShell 吃掉；`-c:x` 会被拆成两个参数；PS 7.4+ 里原生程序之间的管道本来按字节原样传，经过函数就要先按 `[Console]::OutputEncoding` 解码（这台机子是 gb2312），所以 `git diff | nvim -` 里的 UTF-8 中文会乱码（PS5 不经过函数也会变成 `?`）。`+10`、`0x10` 这类参数能原样传过去（测过）。只有在 PowerShell 里按名字调用（提示符里敲的、脚本里写的）才经过包装；`git commit` 这类由别的程序启动的编辑器不经过，直接写 `nvim.exe` 也不经过。
+- 端到端测试：用 `wt -w mmtest nt -p <guid>` 开一个单独的窗口，别动用户正在用的窗口。标签页里 shell 的父进程是 WindowsTerminal.exe，据此找到 PID，`AttachConsole` + `WriteConsoleInput` 注入按键（`-` 键是 VK 0xBD，不是 0x2D；开场动画会吞掉第一个键，先确认 shell 已经能执行命令），用 `PrintWindow(PW_RENDERFULLCONTENT)` 截图对比。GPU 用 `Get-Counter '\GPU Engine(pid_<WT pid>_*)\Utilization Percentage'`（这台机子的计数器名是英文）。`*>` 重定向在 PS5 写 UTF-16、在 PS7 写 UTF-8，用 `[IO.File]::ReadAllText` 读。**判断颜色要对截图做像素采样**，看缩略图会看走眼（曾经把 `#00FF41` 看成淡色）。找光标：提示符的光标会闪，取十几帧，找变化的格子；nvim 普通模式下光标不闪，用普通模式（方块）和插入模式（竖线）两帧的差来找；nvim 退出后提示符的光标可能也不闪了，就用 `GetConsoleScreenBufferInfo` 的光标位置，加上第一次找到的格子来推算。这台机子是管理员会话，提示符结尾是 `#` 不是 `>`。预览配色可以在标签页里用 OSC 4/10 临时换调色板（结果是准的），也可以把配色写进 `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\<名字>\*.json`，然后用 `wt nt --colorScheme <名字>` 打开。管道会让 git 关掉颜色，要加 `-c color.ui=always`。`-File` 必须传绝对路径。不要调用 `python3`（Windows 应用商店的占位程序会卡住）。
 
 ## README 的演示图
 
@@ -54,7 +55,8 @@
 
 - **不要处理 profile 加载慢的问题**：用户说那台机子本来就慢，不是这个主题造成的，他自己解决。
 - 动效要克制，不能影响性能（因此放弃了常驻的动态雨，改成静态雨幕 + 磷光）。
-- 不能污染别的程序的配色（claude、codex 保留原生主题）。
+- 不能污染别的程序的配色（claude、codex、nvim 保留原生主题）。
+- **磷光不用按程序关掉**：着色器作用在整个标签页上，nvim、claude 里的亮色文字和光标也会发光（和背景 `#0D0208` 差得不多的颜色不算文字，nvim 的整屏背景不发光）。2026-10-23 用户看到后说问题不大。提过一个办法，没做也没验证：原生配色时 OSC 11 已经把背景换成 `#0C0C0C`，着色器发现 `Background` 不是 `#0D0208` 就原样输出；设了背景图时 WT 会不会把改过的背景色传给着色器，还不知道。
 - 动手大改之前先说方案。**提交和推送不用再问**（2026-10-17 用户明确授权，限本项目）。
 
 ## 开场结尾的大字（2026-10-18，用户在三个候选里选的）
