@@ -10,8 +10,12 @@
     "rain": "#00FF41",
     "matrix": "#008F11",
     "ghost": "#3D8A50",
-    "mint": "#7DFFB8",
-    "glitch": "#FF3E5B"
+    "glitch": "#FF3E5B",
+    "green": "#00C832",
+    "amber": "#FFB000",
+    "cyan": "#2EE6D6",
+    "bluepill": "#84AEFF",
+    "purple": "#C38BFF"
   },
   "blocks": [
     {
@@ -21,14 +25,14 @@
         {
           "type": "session",
           "style": "plain",
-          "foreground": "p:matrix",
+          "foreground": "p:green",
           "template": "{{ if .Var.Name }}{{ .Var.Name }}{{ else }}{{ .UserName }}{{ end }}{{ if .SSHSession }}@{{ .HostName }}{{ end }} "
         },
         {
           "type": "python",
           "style": "plain",
           "foreground": "p:ghost",
-          "template": "{{ if .Venv }}(<p:mint>{{ regexReplaceAll \"-[A-Za-z0-9_-]{8}-py[0-9.]+$\" .Venv \"\" }}</>) {{ end }}",
+          "template": "{{ if .Venv }}(<p:bluepill>{{ regexReplaceAll \"-[A-Za-z0-9_-]{8}-py[0-9.]+$\" .Venv \"\" }}</>) {{ end }}",
           "options": {
             "display_mode": "environment",
             "fetch_version": false,
@@ -39,8 +43,8 @@
         {
           "type": "git",
           "style": "plain",
-          "foreground": "p:rain",
-          "template": "{{ .HEAD }}{{ if or .Working.Changed .Staging.Changed }}*{{ end }}{{ if gt .Ahead 0 }} +{{ .Ahead }}{{ end }}{{ if gt .Behind 0 }} -{{ .Behind }}{{ end }} ",
+          "foreground": "p:cyan",
+          "template": "{{ .HEAD }}{{ if or .Working.Changed .Staging.Changed }}<p:amber>*</>{{ end }}{{ if gt .Ahead 0 }} <p:purple>+{{ .Ahead }}</>{{ end }}{{ if gt .Behind 0 }} <p:purple>-{{ .Behind }}</>{{ end }} ",
           "options": {
             "source": "cli",
             "fetch_status": true,

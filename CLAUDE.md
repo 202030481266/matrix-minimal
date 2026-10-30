@@ -12,7 +12,7 @@
 | `matrix-minimal.omp.json` | Oh My Posh 配置（schema v4，仓库里 `var.Name` 为空，安装时填入） |
 | `matrix-minimal.ps1` | 提示符初始化，以及所有动效：开场、pwd 解码、失败闪烁、`matrix` 彩蛋；还有自检 `Test-MatrixMinimal` |
 | `matrix-terminal.ps1` | 只在 Windows Terminal 里生效：PowerShell 自己的输出颜色（PS7 用 `$PSStyle`，PS5 用 `$Host.PrivateData`，只替换默认值）、claude/codex/nvim 等程序运行时恢复原生配色（OSC 4/10/11/12，结束后用 104/110/111/112 复位，见下文"原生配色的包装函数"），以及 `rain` 命令（新开一个用 "Matrix Rain" 配置的标签页，见下文） |
-| `matrix-phosphor.hlsl` | 默认的像素着色器：文字微光 + 扫描线。**不用 `Time`**，所以只在画面变化时运行 |
+| `matrix-phosphor.hlsl` | 默认的像素着色器：文字周围的淡光晕 + 把字的抗锯齿边缘压实（`TEXT_GAMMA`），光晕和扫描线都不画在字上（见下文"磷光"）。**不用 `Time`**，所以只在画面变化时运行 |
 | `matrix-rain.hlsl` | 会动的代码雨（用 `Time`，WT 会以 60fps 持续重绘），只用在 "Matrix Rain" 配置上 |
 | `matrix-rain-bg.ps1` | 生成静态雨幕背景图 `matrix-rain-bg.png`，按屏幕尺寸生成 |
 | `windows-terminal.json` | 配色方案（见下文"输出配色"），以及要写进 PowerShell 配置的外观设置 |
@@ -38,7 +38,8 @@
 - 用户的终端尺寸（2026-10-18 实测）：VS Code 80×30，WT 126×36。开场结尾的大字要放得下 80 列、不能太高。
 - **Windows Terminal**：settings.json 会热加载。着色器和背景图按配置（profile）生效，**不能按标签页设置**，也没有 VT 序列能改。设了背景图时，背景本身是透明的，着色器拿到的纹理是预乘 alpha（`matrix-rain.hlsl` 已按这个处理）。着色器不覆盖 padding 区域，所以 phosphor 的 VIGNETTE 默认为 0（否则边缘会出现接缝）。setup 只修改 name/source/commandline 匹配 `PowerShell|pwsh` 的配置，并跳过 Matrix Rain 的 GUID。
 - **原生配色的包装函数**（`$MatrixNativeApps`，2026-10-23 加了 nvim、vim）：每个装了的程序对应一个同名的全局函数，先切换配色再调用真正的程序。nvim 在 Windows 上没设 `TERM` 时把终端认成内置的 `vtpcon`，不发 OSC 12，所以颜色方案里的 `Cursor` 颜色不生效（用户的 gruber-darker 是黄色），光标就是本配色的绿色 `cursorColor`；包装之后是 Campbell 的白色。以前的包装不转发管道输入，`'x' | nvim -` 会一直卡着等输入（`... | claude -p` 也一样），现在 `$MyInvocation.ExpectingInput` 时用 `$input | & $target @args`。函数本身还有几个限制，没处理：`--` 会被 PowerShell 吃掉；`-c:x` 会被拆成两个参数；PS 7.4+ 里原生程序之间的管道本来按字节原样传，经过函数就要先按 `[Console]::OutputEncoding` 解码（这台机子是 gb2312），所以 `git diff | nvim -` 里的 UTF-8 中文会乱码（PS5 不经过函数也会变成 `?`）。`+10`、`0x10` 这类参数能原样传过去（测过）。只有在 PowerShell 里按名字调用（提示符里敲的、脚本里写的）才经过包装；`git commit` 这类由别的程序启动的编辑器不经过，直接写 `nvim.exe` 也不经过。
-- 端到端测试：用 `wt -w mmtest nt -p <guid>` 开一个单独的窗口，别动用户正在用的窗口。标签页里 shell 的父进程是 WindowsTerminal.exe，据此找到 PID，`AttachConsole` + `WriteConsoleInput` 注入按键（`-` 键是 VK 0xBD，不是 0x2D；开场动画会吞掉第一个键，先确认 shell 已经能执行命令），用 `PrintWindow(PW_RENDERFULLCONTENT)` 截图对比。GPU 用 `Get-Counter '\GPU Engine(pid_<WT pid>_*)\Utilization Percentage'`（这台机子的计数器名是英文）。`*>` 重定向在 PS5 写 UTF-16、在 PS7 写 UTF-8，用 `[IO.File]::ReadAllText` 读。**判断颜色要对截图做像素采样**，看缩略图会看走眼（曾经把 `#00FF41` 看成淡色）。找光标：提示符的光标会闪，取十几帧，找变化的格子；nvim 普通模式下光标不闪，用普通模式（方块）和插入模式（竖线）两帧的差来找；nvim 退出后提示符的光标可能也不闪了，就用 `GetConsoleScreenBufferInfo` 的光标位置，加上第一次找到的格子来推算。这台机子是管理员会话，提示符结尾是 `#` 不是 `>`。预览配色可以在标签页里用 OSC 4/10 临时换调色板（结果是准的），也可以把配色写进 `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\<名字>\*.json`，然后用 `wt nt --colorScheme <名字>` 打开。管道会让 git 关掉颜色，要加 `-c color.ui=always`。`-File` 必须传绝对路径。不要调用 `python3`（Windows 应用商店的占位程序会卡住）。
+- 端到端测试：用 `wt -w mmtest nt -p <guid>` 开一个单独的窗口，别动用户正在用的窗口。标签页里 shell 的父进程是 WindowsTerminal.exe，据此找到 PID，`AttachConsole` + `WriteConsoleInput` 注入按键（`-` 键是 VK 0xBD，不是 0x2D；开场动画会吞掉第一个键，先确认 shell 已经能执行命令），用 `PrintWindow(PW_RENDERFULLCONTENT)` 截图对比。GPU 用 `Get-Counter '\GPU Engine(pid_<WT pid>_*)\Utilization Percentage'`（这台机子的计数器名是英文）。`*>` 重定向在 PS5 写 UTF-16、在 PS7 写 UTF-8，用 `[IO.File]::ReadAllText` 读。**判断颜色要对截图做像素采样**，看缩略图会看走眼（曾经把 `#00FF41` 看成淡色）。找光标：提示符的光标会闪，取十几帧，找变化的格子；nvim 普通模式下光标不闪，用普通模式（方块）和插入模式（竖线）两帧的差来找；nvim 退出后提示符的光标可能也不闪了，就用 `GetConsoleScreenBufferInfo` 的光标位置，加上第一次找到的格子来推算。这台机子是管理员会话，提示符结尾是 `#` 不是 `>`。预览配色可以在标签页里用 OSC 4/10 临时换调色板（结果是准的），也可以把配色写进 `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\<名字>\*.json`，然后用 `wt nt --colorScheme <名字>` 打开。管道会让 git 关掉颜色，要加 `-c color.ui=always`。`-File` 必须传绝对路径。不要调用 `python3`（Windows 应用商店的占位程序会卡住）；要处理图片就用 `C:\Users\12584\anaconda3\python.exe -I`（有 PIL、numpy、scipy）。
+- **不碰用户 WT 的预览方法**（2026-10-29 用过）：从 GitHub releases 下载和已装版本相同的便携版 zip（`Microsoft.WindowsTerminal_<版本>_x64.zip`，已装版本用 `Get-AppxPackage Microsoft.WindowsTerminal` 查），解压后在 exe 旁边放一个空的 `.portable` 文件，设置就改从同目录的 `settings\settings.json` 读，和用户的 WT 完全隔开，也是单独的窗口。每个候选着色器各建一个配置，配色用 `nt --colorScheme "<名字>"` 切换；`dismissedMessages` 里加 `closeOnExitInfo`，否则会多一条提示栏。用 PS5 的 `Start-Process -ArgumentList` 传带空格的参数时要自己加引号。演示内容用脚本直接输出 ANSI（提示符和输入高亮按候选配色手写），比真的跑命令稳定。同一个配置先后两次截图，有一次差了 3 万多个像素（原因没查），所以对比用的截图要在同一轮里重新截。要验证真实效果，就给便携版加一个 commandline 为 `pwsh.exe -NoLogo` 的配置（会加载用户真实的 profile），再注入按键；新的 WT 进程会播完整开场，先发一个 Esc 跳过。
 
 ## README 的演示图
 
@@ -58,6 +59,7 @@
 - 不能污染别的程序的配色（claude、codex、nvim 保留原生主题）。
 - **磷光不用按程序关掉**：着色器作用在整个标签页上，nvim、claude 里的亮色文字和光标也会发光（和背景 `#0D0208` 差得不多的颜色不算文字，nvim 的整屏背景不发光）。2026-10-23 用户看到后说问题不大。提过一个办法，没做也没验证：原生配色时 OSC 11 已经把背景换成 `#0C0C0C`，着色器发现 `Background` 不是 `#0D0208` 就原样输出；设了背景图时 WT 会不会把改过的背景色传给着色器，还不知道。
 - 动手大改之前先说方案。**提交和推送不用再问**（2026-10-17 用户明确授权，限本项目）。
+- 实用优先：字要清楚（2026-10-29 用户嫌磷光"对比度不高、糊"），颜色要丰富，不要满屏都是绿色（同一天提的）。改视觉效果时，先把几个候选实际渲染出来做成对比图让用户挑（方法见上文"不碰用户 WT 的预览方法"），磷光这类细节要给 1:1 的图。
 
 ## 开场结尾的大字（2026-10-18，用户在三个候选里选的）
 
@@ -65,11 +67,27 @@
 
 ## 输出配色（2026-10-16，用户在 A/B/C/D 四个候选里选了 A）
 
-以前 16 色几乎全是绿的，前景色 `#00FF41` 和 green `#00C832` 也几乎一样，git diff 的新增行和没改的行分不清。现在的分工是：提示符、输入高亮、雨幕和开场用自己的 RGB 矩阵绿（不受配色影响）；命令输出的正文用淡磷光色 `#B4F1C4`，16 色各有含义：red `#FF3E5B` 红药丸（删除、错误），green `#00E03C` / 亮 `#00FF41`（新增、成功、表头），yellow `#FFB000` 琥珀磷光（警告、commit 号），blue `#508CFF` 蓝药丸，purple `#C38BFF`，cyan `#2EE6D6`（`@@`、HEAD、详细信息）。所有颜色和背景的对比度至少 4.1（brightBlack `#4F7A5A`），正文 15.9。
+以前 16 色几乎全是绿的，前景色 `#00FF41` 和 green `#00C832` 也几乎一样，git diff 的新增行和没改的行分不清。现在的分工是：提示符、输入高亮、雨幕和开场用自己的 RGB 颜色（不受配色影响，见下一节）；命令输出的正文用接近白色的磷光色 `#D5E6DA`（2026-10-29 从淡绿 `#B4F1C4` 改过来，同时 white `#9FC4A8` → `#A3B8AA`、brightWhite `#E8FFEE` → `#F2F8F4`：正文占的面积最大，它不绿了，满屏绿色的感觉才下去，绿色的东西反而更显眼），16 色各有含义：red `#FF3E5B` 红药丸（删除、错误），green `#00E03C` / 亮 `#00FF41`（新增、成功、表头），yellow `#FFB000` 琥珀磷光（警告、commit 号），blue `#508CFF` 蓝药丸，purple `#C38BFF`，cyan `#2EE6D6`（`@@`、HEAD、详细信息）。所有颜色和背景的对比度至少 4.1（brightBlack `#4F7A5A`），正文 15.7。
 
 - 不改用户的 `.gitconfig`：调色板对了，git 的默认颜色就都对了。
 - PS7：Verbose 用青色、Debug 用紫色（默认和警告一样是黄色），图片和音视频用紫色，再补几种压缩包用红色；只在值还是 PowerShell 默认值时才改，所以用户在 `$PROFILE` 里先设的值会保留。PS5：`$Host.PrivateData` 里 Verbose 设成 DarkCyan、Debug 设成 DarkMagenta（对应配色里的 cyan 和 purple）；进度条默认是黄字配 DarkCyan 底，在这套配色下变成琥珀字配青色底，对比度只有 1.04，所以字改成 Black（截图确认过能看清）。PS7 的进度条是黑字配琥珀底，本来就清楚。
-- **目录颜色保持薄荷绿 `#7DFFB8` 加粗**：用户说先看看效果，暂时不改成蓝色。
+- 目录：2026-10-16 先保持薄荷绿 `#7DFFB8` 加粗，2026-10-29 随配色 C 改成蓝色加粗 `#84AEFF`（就是 brightBlue）。要写成 RGB（`1;38;2;132;174;255`）：WT 里加粗配调色板颜色（`1;94`）只会变亮、不会换粗体字，实测出来是细的。PS7 的表头 `32;1` 也因此只是亮绿、不加粗。
+
+## 提示符和输入的配色（2026-10-29，用户在 A/B/C 三套里选了 C）
+
+用户用了一段时间，觉得"基本上都是全绿色系"，想多用别的颜色。规则：绿色是黑客帝国的主色，留给提示符的名字和 `>`/`#`、命令名、新增内容、雨；其他颜色各管一类：红 = 错误和删除，琥珀 = 字符串、警告、未提交的改动，青 = 分支和参数，蓝 = 目录、变量、Python 环境，紫 = 关键字、数字、领先/落后。
+
+- 提示符（`matrix-minimal.omp.json` 的 palette）：名字 `p:green` `#00C832`（原来是 `p:matrix` `#008F11`，对比度只有 4.8，偏暗），括号 `p:ghost`，环境名 `p:bluepill` `#84AEFF`，分支 `p:cyan` `#2EE6D6`，`*` 用 `<p:amber>*</>`（`#FFB000`），`+N`/`-N` 用 `<p:purple>`（`#C38BFF`），`>`/`#` 还是 `p:rain`。`p:mint` 不再用到，已删除。
+- 输入（PSReadLine）：Command `#00FF41`（`Test-MatrixMinimal` 靠它判断配色是否生效，别改），Parameter 和 Type `#2EE6D6`，String `#FFC861`，Number `#DDB6FF`，Variable `#84AEFF`，Keyword `#C38BFF`（以前没设，用的是 PSReadLine 默认的亮绿），Operator `#6FA27C`，Comment 和 InlinePrediction 还是 `#3D8A50`（预览图里用的是 `#4F7A5A`，对比度 4.1 比 4.8 低，就没换）。没高亮的参数是 PSReadLine 默认的 `37`，即配色里的 white。
+- pwd 的路径条、开场、雨、`matrix` 彩蛋都没动，还是绿的。
+- 落选的：A"点缀"（绿色还是主体，只给环境名、`*`、字符串、数字、关键字、参数加色，目录不变）；B（就是 C 但正文还是淡绿）。
+
+## 磷光（2026-10-29 改，用户在三个候选里选了"柔光 + 清晰"）
+
+用户说磷光"对比度不太高，比较糊"。原因有两个：100% 缩放下笔画只有 1–2 像素宽，每 2 像素一行的扫描线（`SCAN_TEXT` 0.08）让字一行亮一行暗；光晕内圈半径只有 1.5 像素，相当于把字模糊一遍，还会把 e、a 中间的空隙填亮，另外有 30% 叠在字上（`GLOW_ON_TEXT`）。现在：`GLOW_STRENGTH` 0.45 → 0.25，`GLOW_ON_TEXT` 0.30 → 0，`SCAN_TEXT` 0.08 → 0（扫描线只留在背景图里），新增 `TEXT_GAMMA` 0.75：设了背景图时字以外是透明的，字边缘像素的 alpha 就是字形覆盖率，取 `pow(a, 0.75)` 把半透明的边缘压实（预乘颜色，rgb 跟着一起缩放）；没有背景图时 alpha 全是 1，不起作用。
+
+- 量法：截图里字左边那块没有雨的区域，笔画平均亮度和紧挨着笔画的那圈像素平均亮度之比（相对亮度 +0.05 之比）。不加着色器 7.9，旧版 6.7，现在 7.4；落选的"无光晕只压实边缘"是 8.1。另一个落选的思路是把光晕半径加大（2.5 像素）：两圈采样之间有空隙，字周围会出现一圈"重影"，更难看。
+- `matrix-rain.hlsl` 本来就不在字上画东西，没改。
 
 ## `rain`：单独一个标签页下雨
 
@@ -86,7 +104,7 @@
 
 ## 提示符里的 Python 环境（2026-10-21，用户在四个候选里选了 A）
 
-样子：`shulin (zion) main* >`，括号 `p:ghost`、环境名 `p:mint`（`#7DFFB8`），放在名字和分支之间。落选的有：放在行首、放在右侧、`py:zion` 文字标签。只做 Python 环境：调研了 Starship、Powerlevel10k、Pure 和 oh-my-posh，四家唯一都默认开启的就是 conda 和 venv。语言版本要启动进程去查，云上下文不是"被激活的环境"，所以都不做。
+样子：`shulin (zion) main* >`，括号 `p:ghost`、环境名原来是 `p:mint`（`#7DFFB8`），2026-10-29 改成 `p:bluepill`（`#84AEFF`），放在名字和分支之间。落选的有：放在行首、放在右侧、`py:zion` 文字标签。只做 Python 环境：调研了 Starship、Powerlevel10k、Pure 和 oh-my-posh，四家唯一都默认开启的就是 conda 和 venv。语言版本要启动进程去查，云上下文不是"被激活的环境"，所以都不做。
 
 - 用的是 oh-my-posh 自带的 `python` 段：`display_mode: environment`；`fetch_version: false`（不启动 python，约 2 ms）；**`home_enabled: true`**（默认是 false，在家目录下环境名会被隐藏）；`default_venv_names` 扩展到 `.venv venv .env env .conda conda virtualenv`。名字是通用名时显示上一级目录名，这条规则对 `CONDA_DEFAULT_ENV` 也生效。conda 用 `-p` 建的环境，`CONDA_DEFAULT_ENV` 是整条路径（envs 目录里的环境才是名字），所以 VS Code 建的 `myproj\.conda` 会显示成 `myproj`。模板里用 `regexReplaceAll` 去掉 poetry 环境名末尾的 `-<8位哈希>-py3.x`。同时有 venv 和 conda 时，优先显示 venv。base 照常显示（和 conda 自己的习惯一致）。
 - 重复前缀：oh-my-posh 的 init 会设 `VIRTUAL_ENV_DISABLE_PROMPT=1`（这时 CPython 的 Activate.ps1 不设 `VIRTUAL_ENV_PROMPT`，所以 `--prompt 别名` 不会显示，显示的是目录名；uv 和 virtualenv 不管这个变量都会设）。conda 的 hook 如果在主题**之后**加载（比如"Anaconda PowerShell Prompt"快捷方式），会把 `prompt` 改名成 `CondaPromptBackup` 再包一层，用 `Write-Host` 输出 `CONDA_PROMPT_MODIFIER`，结果出现 `(base) shulin (base)`。所以 `matrix-minimal.ps1` 在本主题的提示符生效时设 `$env:CONDA_CHANGEPS1 = 'false'`：`conda-hook.ps1` 里写死了 `ChangePs1 = $True`，但这样设之后 modifier 是空串，就不会输出了。`conda init` 写在 `profile.ps1`（CurrentUserAllHosts）里，比主题先加载，它的包装会被 oh-my-posh 换掉，本来就不会重复。
@@ -99,4 +117,5 @@
 - 朋友的机子当初"没有开场动画"的确切原因没有复现出来，修复针对的是可能的原因。如果还有问题，让他重新运行安装并发 `Test-MatrixMinimal` 的输出。
 - 朋友在运行 `irm | iex` 的同一个窗口里输入 `rain`，报"找不到命令"：那个窗口加载的还是旧版 profile，新开标签页就好。提议过在 `install.ps1` 结尾（仅 iex 安装时）当场重新加载 `matrix-terminal.ps1`，并把结尾提示改成"新命令要在新标签页里用"，用户还没决定。
 - PS5 下的失败闪烁效果还没有目测确认过。
+- `docs/demo.gif` 和 `docs/screenshot.png` 还是 2026-10-29 之前的配色和磷光，要重录（录制方法见上文）。
 - 仓库没有 LICENSE（提过，用户还没要求）。

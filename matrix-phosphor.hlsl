@@ -1,8 +1,9 @@
 // Matrix Minimal - phosphor screen for Windows Terminal
 //
-// Text gets a faint phosphor glow and fine scanlines; the rain toward the window
-// corners is dimmed a little. The digital rain itself is the background image
-// matrix-rain-bg.png (made by matrix-rain-bg.ps1, glow and scanlines baked in).
+// Text gets a faint phosphor glow around it, while the text itself stays sharp: the
+// glow is not drawn over the glyphs, there are no scanlines across them, and their
+// soft antialiased edges are firmed up a little. The digital rain is the background
+// image matrix-rain-bg.png (made by matrix-rain-bg.ps1, glow and scanlines baked in).
 //
 // This shader never reads Time, and that is what keeps it cheap: Windows Terminal
 // only runs a shader that ignores Time when the screen content changes, instead
@@ -25,10 +26,13 @@ cbuffer PixelShaderSettings
 };
 
 // ---------------------------------------------------------------- Tweak me
-#define GLOW_STRENGTH   0.45    // phosphor halo around text (0 = off)
+#define GLOW_STRENGTH   0.25    // phosphor halo around text (0 = off)
 #define GLOW_RADIUS     1.5     // halo radius at 100 % scale, in pixels
-#define GLOW_ON_TEXT    0.30    // share of the halo that also brightens the text itself
-#define SCAN_TEXT       0.08    // how much a scanline darkens text (0 = off)
+#define GLOW_ON_TEXT    0.00    // share of the halo that also lands on the text itself (blurs it)
+#define SCAN_TEXT       0.00    // how much a scanline darkens text (0 = off). Strokes are 1-2 px
+                                // wide at 100 % scale, so scanlines make text look striped and soft.
+#define TEXT_GAMMA      0.75    // firms up the antialiased edges of text (1 = off). Only works with
+                                // the background image, see main().
 #define VIGNETTE        0.00    // dims the rain toward the corners; text is never dimmed (0 = off).
                                 // Only use it with "padding": "0": the shader does not cover the
                                 // padding strip, which would stay bright and show as a seam.
@@ -66,6 +70,13 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
     float4 color = shaderTexture.SampleLevel(samplerState, tex, 0);
     float  s     = max(Scale, 1.0);
     float2 texel = 1.0 / Resolution;
+
+    // Firmer text edges. With a background image the terminal background is transparent,
+    // so a pixel's alpha is how much of it the glyph covers: raising it makes the half-lit
+    // edge pixels brighter. Premultiplied colour, so rgb scales with alpha. With an opaque
+    // background every pixel has alpha 1 and nothing changes.
+    if (color.a > 0.0 && color.a < 1.0)
+        color *= pow(color.a, TEXT_GAMMA) / color.a;
 
     // halo: two rings of 8 bilinear taps (each tap averages 4 pixels)
     float3 halo = 0;

@@ -1,7 +1,7 @@
 ﻿# ---------------------------------------------------------------------------
 #  Matrix Minimal: companions for the "Matrix Minimal" Windows Terminal scheme
-#  The prompt, the input and the rain use their own RGB greens. Command output gets
-#  the scheme: pale phosphor text, and ANSI colours that keep their meaning (red
+#  The prompt, the input and the rain use their own RGB colours. Command output gets
+#  the scheme: near-white phosphor text, and ANSI colours that keep their meaning (red
 #  removed / error, green added / success, amber warning, cyan detail, blue, purple).
 #  The scheme applies whatever prompt theme is active, so $PROFILE loads this
 #  file for every theme:   . (Join-Path $HOME '.config/omp/matrix-terminal.ps1')
@@ -13,8 +13,8 @@ if (-not $env:WT_SESSION -or $env:TERM_PROGRAM -eq 'vscode') { return }
 
 # 1. PowerShell's own colours ------------------------------------------------
 #    Verbose and debug messages are amber like warnings by default: give them colours of
-#    their own. Get-ChildItem paints directory names on a blue *background*; use a text
-#    colour, and colour media files too. Only PowerShell's defaults are replaced, so
+#    their own. Get-ChildItem paints directory names on a blue *background*; use blue
+#    text instead, and colour media files too. Only PowerShell's defaults are replaced, so
 #    settings made in $PROFILE before this file is loaded stay.
 if ($PSStyle) {
     & {
@@ -23,7 +23,8 @@ if ($PSStyle) {
         if ($f.Verbose -eq "$e[33;1m") { $f.Verbose = "$e[36m" }    # cyan
         if ($f.Debug -eq "$e[33;1m") { $f.Debug = "$e[35m" }        # purple
         $fi = $PSStyle.FileInfo
-        if ($fi.Directory -eq "$e[44;1m") { $fi.Directory = "$e[1;38;2;125;255;184m" }   # bold #7DFFB8
+        # RGB on purpose: with a palette colour Windows Terminal turns bold into "brighter", not a bold font
+        if ($fi.Directory -eq "$e[44;1m") { $fi.Directory = "$e[1;38;2;132;174;255m" }   # bold #84AEFF (brightBlue)
         $add = @{
             "$e[35m"   = '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg', '.ico',
                          '.mp3', '.wav', '.flac', '.mp4', '.mkv', '.mov', '.avi'

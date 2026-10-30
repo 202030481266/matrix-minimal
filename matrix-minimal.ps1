@@ -102,14 +102,16 @@ if (Get-Module PSReadLine) {
     & {
         $e = [char]27
         $colors = @{
-            Command   = "$e[38;2;0;255;65m"
-            Parameter = "$e[38;2;0;143;17m"
-            Operator  = "$e[38;2;0;143;17m"
-            String    = "$e[38;2;197;228;120m"
-            Number    = "$e[38;2;197;228;120m"
-            Variable  = "$e[38;2;125;255;184m"
+            Command   = "$e[38;2;0;255;65m"         # matrix green
+            Parameter = "$e[38;2;46;230;214m"       # cyan
+            Operator  = "$e[38;2;111;162;124m"
+            String    = "$e[38;2;255;200;97m"       # amber
+            Number    = "$e[38;2;221;182;255m"      # light purple
+            Variable  = "$e[38;2;132;174;255m"      # blue pill
+            Keyword   = "$e[38;2;195;139;255m"      # purple
+            Type      = "$e[38;2;46;230;214m"       # cyan
             Comment   = "$e[38;2;61;138;80m"
-            Error     = "$e[38;2;255;62;91m"
+            Error     = "$e[38;2;255;62;91m"        # red pill
         }
         if ((Get-Module PSReadLine).Version -ge [version]'2.1.0') {
             $colors.InlinePrediction = "$e[38;2;61;138;80m"
