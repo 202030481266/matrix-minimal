@@ -1,7 +1,7 @@
 ﻿# ---------------------------------------------------------------------------
 #  Matrix Minimal: companions for the "Matrix Minimal" Windows Terminal scheme
 #  The prompt, the input and the rain use their own RGB colours. Command output gets
-#  the scheme: near-white phosphor text, and ANSI colours that keep their meaning (red
+#  the scheme: white text, and ANSI colours that keep their meaning (red
 #  removed / error, green added / success, amber warning, cyan detail, blue, purple).
 #  The scheme applies whatever prompt theme is active, so $PROFILE loads this
 #  file for every theme:   . (Join-Path $HOME '.config/omp/matrix-terminal.ps1')
@@ -110,7 +110,7 @@ function global:$app {
 #               "Matrix Rain", added to settings.json the first time; other tabs keep the still
 #               rain; run in a raining tab, it opens one more. Such a tab redraws all the time,
 #               which keeps the GPU busy even while another tab is in front or the window is
-#               minimised (measured): close it when done.
+#               minimised (measured): close it when done. It says nothing; the README explains.
 #    rain off   tells you to close those tabs; it also undoes "rain on" of earlier versions, which
 #               made every PowerShell profile rain
 #    settings.json is edited as text, so comments and formatting stay as they are; the terminal
@@ -243,6 +243,4 @@ function global:rain {
            else { Join-Path $PSHOME 'pwsh.exe' }
     $dir = (Get-Location -PSProvider FileSystem).ProviderPath.Replace(';', '\;')
     & $wt -w 0 nt -p $guid -d $dir $exe -NoLogo
-    if ($here) { Write-Host '又开了一个下雨的标签页。每个都会一直占用显卡，看够了都关掉' -ForegroundColor Green }
-    else { Write-Host '代码雨在新标签页 "Matrix Rain" 里下，别的标签页不受影响。它会一直占用显卡（切到别的标签页也不会停），看够了关掉那个标签页就行' -ForegroundColor Green }
 }

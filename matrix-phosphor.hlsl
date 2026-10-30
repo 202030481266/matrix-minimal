@@ -1,9 +1,11 @@
 // Matrix Minimal - phosphor screen for Windows Terminal
 //
-// Text gets a faint phosphor glow around it, while the text itself stays sharp: the
-// glow is not drawn over the glyphs, there are no scanlines across them, and their
-// soft antialiased edges are firmed up a little. The digital rain is the background
-// image matrix-rain-bg.png (made by matrix-rain-bg.ps1, glow and scanlines baked in).
+// Coloured text (the green prompt, the intro title, red / amber / blue output) gets a
+// faint phosphor glow around it; white and grey text gets none, as a grey haze around
+// white text only makes it look dirty and soft. The text itself stays sharp: the glow
+// is not drawn over the glyphs, there are no scanlines across them, and their soft
+// antialiased edges are firmed up a little. The digital rain is the background image
+// matrix-rain-bg.png (made by matrix-rain-bg.ps1, glow and scanlines baked in).
 //
 // This shader never reads Time, and that is what keeps it cheap: Windows Terminal
 // only runs a shader that ignores Time when the screen content changes, instead
@@ -26,8 +28,10 @@ cbuffer PixelShaderSettings
 };
 
 // ---------------------------------------------------------------- Tweak me
-#define GLOW_STRENGTH   0.25    // phosphor halo around text (0 = off)
+#define GLOW_STRENGTH   0.25    // phosphor halo around coloured text (0 = off)
 #define GLOW_RADIUS     1.5     // halo radius at 100 % scale, in pixels
+#define GLOW_WHITE      0.00    // how much white and grey text glows, compared with coloured text
+                                // (1 = the same)
 #define GLOW_ON_TEXT    0.00    // share of the halo that also lands on the text itself (blurs it)
 #define SCAN_TEXT       0.00    // how much a scanline darkens text (0 = off). Strokes are 1-2 px
                                 // wide at 100 % scale, so scanlines make text look striped and soft.
@@ -59,10 +63,13 @@ float Textness(float4 c)
     return smoothstep(TEXT_LOW, TEXT_HIGH, max(d.r, max(d.g, d.b)));
 }
 
-// Only text emits light.
+// Only text emits light, coloured text more than white and grey text.
 float3 Light(float4 c)
 {
-    return max(c.rgb - Background.rgb * c.a, 0.0) * Textness(c);
+    float hi  = max(c.r, max(c.g, c.b));
+    float sat = (hi - min(c.r, min(c.g, c.b))) / max(hi, 1e-4);     // 0 for white and grey
+    float w   = lerp(GLOW_WHITE, 1.0, smoothstep(0.25, 0.6, sat));
+    return max(c.rgb - Background.rgb * c.a, 0.0) * Textness(c) * w;
 }
 
 float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
