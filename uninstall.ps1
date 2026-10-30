@@ -163,6 +163,8 @@ if ($terminal) {
             Write-Ok 'Windows Terminal：删除了 "Matrix Rain" 配置'
         }
         foreach ($pr in $list) {
+            # the optional phosphor shader goes away with the theme files: nothing may point at it
+            if ("$(Get-Prop $pr 'experimental.pixelShaderPath')" -match 'matrix-phosphor\.hlsl$') { $pr.PSObject.Properties.Remove('experimental.pixelShaderPath') }
             $id = if ($pr.guid) { $pr.guid } else { $pr.name }
             $before = Get-Prop $record.profiles $id
             if (-not $before) { continue }

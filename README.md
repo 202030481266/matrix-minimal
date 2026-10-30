@@ -20,7 +20,7 @@
 
 - 代码雨背景，其中雨集中在右侧，往左、往下逐渐变淡，主要是考虑到大多数人的使用习惯是从左到右输入命令。
 
-- 彩色的字周围有一层淡淡的荧光，参考了老式磷光显示器的风格；白色的正文不加荧光，扫描线也只画在背景的雨幕上，字本身保持清晰。
+- 背景的雨带着淡淡的荧光和细扫描线，参考了老式磷光显示器的风格；字本身不加任何特效，保持清晰。
 
 - 配色：绿色是黑客帝国的主色，用在提示符、命令名、新增的内容和代码雨上；其他颜色各表示一类东西：红色是错误和删除，琥珀色是字符串、警告和未提交的改动，青色是分支和参数，蓝色是目录、变量和 Python 环境，紫色是关键字、数字和领先/落后的提交数。命令输出的正文是白色。
 
@@ -51,14 +51,14 @@ irm https://raw.githubusercontent.com/202030481266/matrix-minimal/main/install.p
 1. 如果没有 oh-my-posh，从官方下载独立版到 `%LOCALAPPDATA%\Programs\oh-my-posh\bin`，校验 SHA256 和数字签名后加入用户 PATH。
 2. 把主题文件复制到 `~\.config\omp`，并按屏幕尺寸生成背景图。
 3. 在 Windows PowerShell 和 PowerShell 7 的 profile 里各加两行来加载主题。如果执行策略是 Restricted，会改为 RemoteSigned（只针对当前用户），否则 profile 根本不会运行。
-4. 在 Windows Terminal 里加入 "Matrix Minimal" 配色，并给 PowerShell 的配置换上配色、背景和磷光效果。cmd、WSL 等其他配置保持原样。
+4. 在 Windows Terminal 里加入 "Matrix Minimal" 配色，并给 PowerShell 的配置换上配色和背景。cmd、WSL 等其他配置保持原样。
 
 也可以 clone 仓库或下载 zip，在目录里运行 `powershell -ExecutionPolicy Bypass -File .\install.ps1`。以后要更新，`git pull` 之后再运行一次即可。
 
 ### 环境要求
 
 - Windows 10 或 11
-- [Windows Terminal](https://aka.ms/terminal)：配色、背景和磷光效果都依赖它。没有的话，提示符和动效照样可以用，VS Code 的终端里也一样。
+- [Windows Terminal](https://aka.ms/terminal)：配色和背景都依赖它。没有的话，提示符和动效照样可以用，VS Code 的终端里也一样。
 - 显示缩放为 100% 时背景最清晰；其他缩放比例下，把窗口最大化效果最好。
 
 ## 自定义
@@ -68,7 +68,7 @@ irm https://raw.githubusercontent.com/202030481266/matrix-minimal/main/install.p
 | 名字            | 修改 `~\.config\omp\matrix-minimal.omp.json` 里的 `var.Name`                                                                                            |
 | 开场频率，或者关掉某个动效 | 在 `$PROFILE` 里加载主题的两行之前写上 `$MatrixFx = @{ Intro = 'daily'; Decode = $true; Glitch = $true }`。`Intro` 可以是 `launch`（默认，每次启动终端放一次，之后的新标签页只显示结尾的大字）、`always`（每个新标签页都放）、`daily`（每天一次，其余标签页只显示大字）或 `off` |
 | 背景雨的疏密、亮度和排布  | 修改 `~\.config\omp\matrix-rain-bg.ps1` 开头 "Tweak me" 部分的参数，运行 `pwsh -File ~\.config\omp\matrix-rain-bg.ps1 -Seed 7` 重新生成，再新开一个标签页                    |
-| 磷光的强弱         | 修改 `~\.config\omp\matrix-phosphor.hlsl` 开头的参数，保存后立即生效                                                                                               |
+| 给字加磷光光晕       | 默认不开，因为光晕会让字变糊。想要的话，在 Windows Terminal 的设置里给 PowerShell 配置加上 `"experimental.pixelShaderPath": "%USERPROFILE%\\.config\\omp\\matrix-phosphor.hlsl"`（只有彩色的字发光，白字不发光）；强弱改这个文件开头的参数，保存后立即生效。卸载时会一并去掉 |
 | 输出的配色         | 在 Windows Terminal 的设置里修改 "Matrix Minimal" 配色，重新安装时会被覆盖。PowerShell 7 自己的输出颜色在 `$PSStyle` 里，在 `$PROFILE` 中加载主题之前设置的值会保留                              |
 | 保留原生配色的程序     | 这些程序运行时，标签页换回 Windows Terminal 的默认配色（光标也换回白色），退出后恢复。默认是 claude、codex、gemini、opencode、aider、copilot、nvim 和 vim；要增减的话，在加载主题之前设置，比如 `$MatrixNativeApps = 'claude', 'codex', 'nvim', 'lazygit'` |
 

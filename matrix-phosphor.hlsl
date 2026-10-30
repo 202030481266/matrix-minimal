@@ -1,10 +1,14 @@
-// Matrix Minimal - phosphor screen for Windows Terminal
+// Matrix Minimal - optional phosphor glow for Windows Terminal
+//
+// The installer does not switch it on: any glow around text makes it a little less sharp
+// than Windows Terminal draws it (compare a "Matrix Rain" tab, whose shader leaves the
+// text alone). For the look of an old phosphor screen anyway, add it to the PowerShell
+// profiles yourself (see "Use" below).
 //
 // Coloured text (the green prompt, the intro title, red / amber / blue output) gets a
-// faint phosphor glow around it; white and grey text gets none, as a grey haze around
-// white text only makes it look dirty and soft. The text itself stays sharp: the glow
-// is not drawn over the glyphs, there are no scanlines across them, and their soft
-// antialiased edges are firmed up a little. The digital rain is the background image
+// faint glow around it; white and grey text gets none, as a grey haze around white text
+// only makes it look dirty and soft. The glow is not drawn over the glyphs, and there
+// are no scanlines across them. The digital rain is the background image
 // matrix-rain-bg.png (made by matrix-rain-bg.ps1, glow and scanlines baked in).
 //
 // This shader never reads Time, and that is what keeps it cheap: Windows Terminal
@@ -35,8 +39,9 @@ cbuffer PixelShaderSettings
 #define GLOW_ON_TEXT    0.00    // share of the halo that also lands on the text itself (blurs it)
 #define SCAN_TEXT       0.00    // how much a scanline darkens text (0 = off). Strokes are 1-2 px
                                 // wide at 100 % scale, so scanlines make text look striped and soft.
-#define TEXT_GAMMA      0.75    // firms up the antialiased edges of text (1 = off). Only works with
-                                // the background image, see main().
+#define TEXT_GAMMA      1.00    // < 1 makes text bolder by raising its antialiased edges (1 = off);
+                                // it also lifts the faint outer fringe, so outlines get softer.
+                                // Only works with the background image, see main().
 #define VIGNETTE        0.00    // dims the rain toward the corners; text is never dimmed (0 = off).
                                 // Only use it with "padding": "0": the shader does not cover the
                                 // padding strip, which would stay bright and show as a seam.
@@ -78,7 +83,7 @@ float4 main(float4 pos : SV_POSITION, float2 tex : TEXCOORD) : SV_TARGET
     float  s     = max(Scale, 1.0);
     float2 texel = 1.0 / Resolution;
 
-    // Firmer text edges. With a background image the terminal background is transparent,
+    // Bolder text (TEXT_GAMMA). With a background image the terminal background is transparent,
     // so a pixel's alpha is how much of it the glyph covers: raising it makes the half-lit
     // edge pixels brighter. Premultiplied colour, so rgb scales with alpha. With an opaque
     // background every pixel has alpha 1 and nothing changes.

@@ -221,13 +221,16 @@ function global:Test-MatrixMinimal {
             } else {
                 & $add bad 'terminal' "$who 的配色是「$scheme」，不是 Matrix Minimal"
             }
-            $shader = & $get 'experimental.pixelShaderPath'
-            if (-not $shader) {
-                & $add bad 'rain' "$who 没有设置代码雨 shader"
+            # the still rain is the background image; "Matrix Rain" tabs have the moving one, a shader
+            $raining = $picked.Profile -and $picked.Profile.guid -eq '{4d415452-4958-5241-494e-6d696e696d61}'
+            $what = if ($raining) { '代码雨 shader' } else { '雨幕背景图' }
+            $file = if ($raining) { & $get 'experimental.pixelShaderPath' } else { & $get 'backgroundImage' }
+            if (-not $file) {
+                & $add bad 'rain' "$who 没有设置$what"
             } else {
-                $real = [Environment]::ExpandEnvironmentVariables($shader)
-                if (Test-Path $real) { & $add ok 'rain' "shader $real" }
-                else { & $add bad 'rain' "shader 文件不存在：$real" }
+                $real = [Environment]::ExpandEnvironmentVariables($file)
+                if (Test-Path $real) { & $add ok 'rain' "$what $real" }
+                else { & $add bad 'rain' "$what 不存在：$real" }
             }
         }
     }

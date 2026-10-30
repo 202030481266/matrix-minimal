@@ -11,7 +11,7 @@
     2. 主题文件复制到 ~\.config\omp，写入你的名字，按你的屏幕生成代码雨背景图
     3. PowerShell 7 和 Windows PowerShell 的 profile 各加两行加载主题；
        执行策略是 Restricted 时改成 RemoteSigned（仅当前用户），否则 profile 根本不会运行
-    4. Windows Terminal：加入 Matrix Minimal 配色；只有 PowerShell 的配置换上配色、雨幕背景和磷光效果
+    4. Windows Terminal：加入 Matrix Minimal 配色；只有 PowerShell 的配置换上配色和雨幕背景
 
 .PARAMETER Name
   提示符和开场白（Wake up, <名字>...）里的名字。不给就询问，直接回车用上次安装的名字或 Windows 用户名。
@@ -359,10 +359,8 @@ if ($SkipTerminal) {
     foreach ($p in $wt.powershellProfiles.PSObject.Properties) { $look[$p.Name] = $p.Value }
     $look['backgroundImageStretchMode'] = $stretch
     $rainProfile = '{4d415452-4958-5241-494e-6d696e696d61}'   # added by the "rain" command
-    if ($sandbox) {
-        $look['backgroundImage'] = Join-Path $target 'matrix-rain-bg.png'
-        $look['experimental.pixelShaderPath'] = Join-Path $target 'matrix-phosphor.hlsl'
-    }
+    if ($sandbox) { $look['backgroundImage'] = Join-Path $target 'matrix-rain-bg.png' }
+    $shaderKey = 'experimental.pixelShaderPath'
     $settingsFiles = @(
         (Join-Path $localAppData 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'),
         (Join-Path $localAppData 'Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json'),
@@ -386,6 +384,7 @@ if ($SkipTerminal) {
         if (-not $record.Contains('schemeExisted')) { $record['schemeExisted'] = [bool](@($s.schemes) | Where-Object { $_ -and $_.name -eq $scheme.name }) }
         if (-not $record.Contains('profiles')) { $record['profiles'] = [ordered]@{} }
 
+        $migrate = -not $record.Contains('phosphorOff')
         $schemes = @(@($s.schemes) | Where-Object { $_ -and $_.name -ne $scheme.name }) + $scheme
         if ($s.PSObject.Properties['schemes']) { $s.PSObject.Properties['schemes'].Value = $schemes }
         else { $s | Add-Member -NotePropertyName schemes -NotePropertyValue $schemes }
@@ -403,12 +402,25 @@ if ($SkipTerminal) {
                 if ($pr.PSObject.Properties[$k]) { $pr.PSObject.Properties[$k].Value = $look[$k] }
                 else { $pr | Add-Member -NotePropertyName $k -NotePropertyValue $look[$k] }
             }
+            # Earlier versions put the phosphor shader on these profiles; it blurred the text. Take it
+            # off, once per settings file (a shader put back by hand later stays), giving back the
+            # shader that was there before, if any. The recorded "before" can be the phosphor itself
+            # (a state file made after an install): that counts as none. The shader is not ours to
+            # restore any more after that.
+            $rec = $record['profiles'][$id]
+            if ($migrate -and "$($pr.$shaderKey)" -match 'matrix-phosphor\.hlsl$') {
+                $was = "$($rec[$shaderKey])"
+                if ($was -and $was -ne '<absent>' -and $was -notmatch 'matrix-phosphor\.hlsl$') { $pr.$shaderKey = $was }
+                else { $pr.PSObject.Properties.Remove($shaderKey) }
+            }
+            if ($rec.Contains($shaderKey)) { $rec.Remove($shaderKey) }
             $names += "$($pr.name)"
         }
+        $record['phosphorOff'] = $true
         if (-not $names) { Write-Note "$path 里没有 PowerShell 配置，只加入了配色"; }
         Backup-File $path
         [IO.File]::WriteAllText($path, ($s | ConvertTo-Json -Depth 64), $utf8)
-        Write-Ok "配色、雨幕和磷光效果 -> $(($names | Select-Object -Unique) -join '、')"
+        Write-Ok "配色和雨幕 -> $(($names | Select-Object -Unique) -join '、')"
         Write-Ok "背景图拉伸方式：$stretch（显示缩放 $([math]::Round($screen[2] / 96 * 100))%）"
     }
 }

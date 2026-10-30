@@ -165,13 +165,14 @@ function global:rain {
     ) | Where-Object { Test-Path $_ }
     $found = @(foreach ($path in $settings) {
         $text = [IO.File]::ReadAllText($path)
-        if ($text -match 'matrix-(phosphor|rain)\.hlsl') { @{ Path = $path; Text = $text; List = Get-ProfileList $text } }
+        if ($text -match 'matrix-rain-bg\.png|matrix-(phosphor|rain)\.hlsl') { @{ Path = $path; Text = $text; List = Get-ProfileList $text } }
     })
     if (-not $found) { Write-Warning 'Windows Terminal 里没有使用 Matrix Minimal 的配置（先运行安装）'; return }
 
     if ($State -eq 'off') {
         # Earlier versions swapped the moving rain into every PowerShell profile. Swap it back in
-        # those entries only, last one first so the positions found before stay right.
+        # those entries only (the still rain image, no shader), last one first so the positions
+        # found before stay right.
         $undone = $false
         foreach ($f in $found) {
             if (-not $f.List) { continue }
@@ -180,12 +181,12 @@ function global:rain {
                 $it = $f.List.Items[$i]
                 $entry = $text.Substring($it.Start, $it.End - $it.Start)
                 if ($it.Guid -eq $guid -or -not $entry.Contains('matrix-rain-clear.png')) { continue }
-                $entry = $entry.Replace('matrix-rain.hlsl', 'matrix-phosphor.hlsl').Replace('matrix-rain-clear.png', 'matrix-rain-bg.png')
+                $entry = ($entry -replace '("experimental\.pixelShaderPath"\s*:\s*)"[^"]*matrix-rain\.hlsl"', '$1""').Replace('matrix-rain-clear.png', 'matrix-rain-bg.png')
                 $text = $text.Substring(0, $it.Start) + $entry + $text.Substring($it.End)
             }
             if ($text -ne $f.Text) { Save-Settings $f $text; $undone = $true }
         }
-        if ($undone) { Write-Host '代码雨：关。PowerShell 标签页换回静态雨幕和磷光效果' -ForegroundColor DarkGreen }
+        if ($undone) { Write-Host '代码雨：关。PowerShell 标签页换回静态雨幕' -ForegroundColor DarkGreen }
         if ($here) { Write-Host '这个标签页就在下雨，把它和别的 "Matrix Rain" 标签页都关掉，雨就停了' -ForegroundColor DarkGreen }
         elseif (-not $undone) { Write-Host '代码雨只在 "Matrix Rain" 标签页里下，关掉那些标签页就停了' -ForegroundColor DarkGreen }
         return

@@ -31,7 +31,6 @@
     "useAcrylic": false,
     "backgroundImage": "%USERPROFILE%\\.config\\omp\\matrix-rain-bg.png",
     "backgroundImageAlignment": "bottomLeft",
-    "backgroundImageOpacity": 1.0,
-    "experimental.pixelShaderPath": "%USERPROFILE%\\.config\\omp\\matrix-phosphor.hlsl"
+    "backgroundImageOpacity": 1.0
   }
 }
