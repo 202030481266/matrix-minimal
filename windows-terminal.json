@@ -3,7 +3,7 @@
     {
       "name": "Matrix Minimal",
       "background": "#0D0208",
-      "foreground": "#FFFFFF",
+      "foreground": "#CCCCCC",
       "cursorColor": "#00FF41",
       "selectionBackground": "#003B00",
       "black": "#0D0208",
@@ -13,7 +13,7 @@
       "blue": "#508CFF",
       "purple": "#C38BFF",
       "cyan": "#2EE6D6",
-      "white": "#C8C8C8",
+      "white": "#CCCCCC",
       "brightBlack": "#4F7A5A",
       "brightRed": "#FF6B7F",
       "brightGreen": "#00FF41",
@@ -21,7 +21,7 @@
       "brightBlue": "#84AEFF",
       "brightPurple": "#DDB6FF",
       "brightCyan": "#7CF5EA",
-      "brightWhite": "#FFFFFF"
+      "brightWhite": "#F2F2F2"
     }
   ],
   "powershellProfiles": {
