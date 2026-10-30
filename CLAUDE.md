@@ -43,13 +43,16 @@
 
 ## README 的演示图
 
-`docs/demo.gif` 是 2026-10-18 重录的（为了开场结尾的 DESERT 大字；37.7 秒，3.3 MB，1116×920，346 帧；名字 shulin，在临时仓库 `D:\项目\zion` 里录，录完删掉了）：开场 → `pwd` → `git status -s` → `git diff` → 敲错 `matirx` 触发闪烁 → `matrix`（菜单、按 `r`、全屏代码雨、按空格醒来、台词）→ `rain`（切到 Matrix Rain 标签页，约 1.7 秒动态雨后结束，接着循环）。`docs/screenshot.png` 是敲错命令后闪烁结束的那一帧（能看到大字和 git 的配色）。两段整屏的雨占了 GIF 的大部分体积；改用 128 色只小 8%，所以保留 256 色。录制方法：
-- zion 仓库：`neo.ps1` 提交过的内容是 `$choice = 'red pill'` / `$spoon = $true` / `Follow-WhiteRabbit`，工作区把第二行改成 `$spoon = $null   # there is no spoon`（blob 正好是 `1202f88..bf5c812`）；`oracle.md` 已暂存，`morpheus.txt` 未跟踪。文件要写成 CRLF，否则 autocrlf 会在 `git diff` 里打出换行警告。
+`docs/demo.gif` 是 2026-10-30 重录的（白色正文、普通标签页不用着色器之后；36.4 秒，1.6 MB，1116×920，324 帧；名字 shulin，在临时仓库 `D:\项目\zion` 里录，录完删掉了。上一版 2026-10-18 的有磷光，3.3 MB）：开场 → `pwd` → `git status -s` → `git diff` → 敲错 `matirx` 触发闪烁 → `matrix`（菜单、按 `r`、全屏代码雨、按空格醒来、台词）→ `rain`（切到 Matrix Rain 标签页，约 1.7 秒动态雨后结束，接着循环）。提示符是 `shulin (zion) main* +1 #`，新配色的几种颜色都在里面。`docs/screenshot.png` 是敲错命令后闪烁结束的那一帧（能看到大字和 git 的配色）。两段整屏的雨占了 GIF 的大部分体积；改用 128 色只小 8%，所以保留 256 色。录制方法：
+- zion 仓库：`neo.ps1` 提交过的内容是 `$choice = 'red pill'` / `$spoon = $true` / `Follow-WhiteRabbit`，工作区把第二行改成 `$spoon = $null   # there is no spoon`（blob 正好是 `1202f88..bf5c812`）；`oracle.md` 已暂存，`morpheus.txt` 未跟踪。文件要写成 CRLF，否则 autocrlf 会在 `git diff` 里打出换行警告。为了显示 `+1`：先把第一个提交推到一个临时的裸仓库（`origin`），再提交一个别的文件。
+- `(zion)`：shell 用 `pwsh.exe -NoLogo -NoExit -EncodedCommand <$env:VIRTUAL_ENV = 'D:\项目\zion\.venv' 的 base64>` 启动（profile 照常加载，第一个提示符出来前就设好了；`.venv` 目录不用真的存在）。
+- 完整开场：默认 `Intro` 是 launch，WT 已经在运行时新窗口只解码大字。录之前删掉 `%LOCALAPPDATA%\matrix-minimal\launch-<WT 的 pid>-*`，录制标签页就会重新建这个标记、播完整开场，录完状态和原来一样。
 - 打开一个单独的 WT 窗口：`wt -w mmrec --size 100,36 nt -p <默认的 PowerShell 配置 guid> -d <仓库> pwsh.exe -NoLogo`。大字比原来的一行多占 7 行，36 行正好让敲错命令后的整屏（大字 + pwd + status + diff + 报错）不滚动。用一个后台线程每 50 ms 调一次 `PrintWindow`（进程先设成 per-monitor DPI aware），另开 3 个线程编码 PNG；用 `WriteConsoleInput` 逐字"打字"（每键 55–130 ms）。脚本用 Windows PowerShell 5.1 跑（C# 里直接用 System.Drawing），文件要带 BOM。
 - **开场里按任何键都会跳过开场，而且这个键会被吞掉**：attach 到 shell 的控制台后用 `ReadConsoleOutputCharacter` 读第 10 行，以 `shulin` 开头说明开场（含解码）结束、提示符已经重画。
 - 录制窗口弹出来后被手动最小化过一次（GetWindowRect 变成 160×28，帧全废）：录制线程发现 `IsIconic` 就 `ShowWindow(SW_SHOWNOACTIVATE)` 恢复（不抢焦点）。被别的窗口挡住不影响 `PrintWindow`。
-- `rain` 打开的新标签页约 2 秒后也会开始播开场（录制时 Intro 还是 always），GIF 要在那之前结束：量每帧第 2 行的亮绿像素，找新标签页里开场文字出现的时刻。现在默认是 launch，重录时新标签页约 1 秒后会解码出 DESERT 大字，同样要在那之前结束。
-- 剪辑：裁掉标签栏和边框（终端区域 x=8、y=41、1116×920）；从第一行开场文字出现前几帧开始；相同的帧合并；光标闪烁（A、B、A，B 只在一个格子里不同）合并成一帧，磷光让光标的差异框有 17×31，阈值用宽 ≤24、高 ≤36（打一个字至少变两格，不会被误合并；失败闪烁也不会）；每次停顿最长 2.2 秒，大字那一帧特意给满 2.2 秒；最后一帧只停 80 ms，接着从头循环。然后用 ffmpeg 的 concat 列表带上每帧时长，两遍：`palettegen=reserve_transparent=0`，再 `paletteuse=dither=none:diff_mode=rectangle` 加 `-fps_mode vfr`。
+- **按 `rain` 的回车之前，先把录制窗口激活到前台**（`AttachThreadInput` 到前台线程，再 `BringWindowToTop` + `SetForegroundWindow`，检查 `GetForegroundWindow`）：`rain` 用 `wt -w 0`，指最近激活的窗口；2026-10-30 第一次录时新标签页开到了用户正在用的窗口里。激活失败就按 Esc 清掉这行、不按回车。
+- `rain` 打开的新标签页约 1.7 秒后开始解码 DESERT 大字（之前可能还会闪一下第一个提示符），GIF 要在那之前结束：量每帧左上角亮绿像素的数量找到这个时刻。
+- 剪辑：裁掉标签栏和边框（终端区域 x=8、y=41、1116×920）；开头放一帧没有光标的空白窗口（300 ms），然后从开场打出第一个字开始（跳过第一个提示符一闪而过的那一帧）；按 `rain` 回车后屏幕上滚的帧保留，切换标签页时那一帧全黑的跳过；相同的帧合并；光标闪烁（A、B、A，B 只在一个格子里不同）合并成一帧，阈值用宽 ≤24、高 ≤36（有磷光时光标的差异框是 17×31；打一个字也只变两格，但打字后不会再变回 A，不会被误合并；失败闪烁也不会）；每次停顿最长 2.2 秒，大字那一帧特意给满 2.2 秒；最后一帧只停 80 ms，接着从头循环。然后用 ffmpeg 的 concat 列表带上每帧时长，两遍：`palettegen=reserve_transparent=0`，再 `paletteuse=dither=none:diff_mode=rectangle` 加 `-fps_mode vfr`。concat 列表结尾按惯例重复写一次最后的文件，会多出一帧 40 ms；不写的话最后一帧又只有 40 ms，所以不写，编码后直接把文件里最后一个图形控制扩展块（`21 F9 04`）的延时改成 8（单位 1/100 秒），再解码最后一帧和源 PNG 对比确认改对了地方。
 - PS7.4 以后，敲错命令会出现 `[General Feedback]` 提示（"最相似的命令是 matrix"），这是 PowerShell 自带的，录进去了。
 
 ## 用户的偏好
@@ -126,6 +129,4 @@
 
 - 朋友的机子当初"没有开场动画"的确切原因没有复现出来，修复针对的是可能的原因。如果还有问题，让他重新运行安装并发 `Test-MatrixMinimal` 的输出。
 - 朋友在运行 `irm | iex` 的同一个窗口里输入 `rain`，报"找不到命令"：那个窗口加载的还是旧版 profile，新开标签页就好。提议过在 `install.ps1` 结尾（仅 iex 安装时）当场重新加载 `matrix-terminal.ps1`，并把结尾提示改成"新命令要在新标签页里用"，用户还没决定。
-- PS5 下的失败闪烁效果还没有目测确认过。
-- `docs/demo.gif` 和 `docs/screenshot.png` 还是 2026-10-29 之前的配色和磷光，要重录（录制方法见上文）。
-- 仓库没有 LICENSE（提过，用户还没要求）。
+- PS5 下的失败闪烁效果还没有目测确认过。- 仓库没有 LICENSE（提过，用户还没要求）。
